@@ -1,5 +1,5 @@
 """
-Enviroment base class
+Enviroment base class.
 """
 
 
@@ -41,5 +41,5 @@ class Enviroment(pax.Module):
 
     def canonical_observation(self) -> Any:
         """
-        Return the canonical observation
+        Return the canonical observation.
         """

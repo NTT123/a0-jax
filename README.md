@@ -1,4 +1,4 @@
-# a0-jax
+# a0-jax (work-in-progress)
 AlphaZero in JAX using PAX library
 
 ```sh
