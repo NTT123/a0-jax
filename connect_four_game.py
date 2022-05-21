@@ -21,7 +21,6 @@ class Connect4WinChecker(pax.Module):
     def __init__(self):
         super().__init__()
         conv = pax.Conv2D(1, 6, 4, padding="VALID")
-        print(conv.weight.shape)
         weight = np.zeros((4, 4, 1, 6), dtype=np.float32)
         weight[0, :, :, 0] = 1
         weight[-1, :, :, 1] = 1
