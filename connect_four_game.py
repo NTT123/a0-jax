@@ -5,10 +5,10 @@ from typing import Tuple
 import chex
 import jax.numpy as jnp
 import jmp
+import numpy as np
 import pax
 
 from env import Enviroment
-import numpy as np
 
 
 class Connect4WinChecker(pax.Module):
@@ -16,19 +16,24 @@ class Connect4WinChecker(pax.Module):
 
     We use a conv2d for scanning the whole board.
     (We can do better by locating the recent move.)
+
+    Filters to scan for winning patterns:
+
+    1 0 0 0    1 1 1 1    1 0 0 0    0 0 0 1
+    1 0 0 0    0 0 0 0    0 1 0 0    0 0 1 0
+    1 0 0 0    0 0 0 0    0 0 1 0    0 1 0 0
+    1 0 0 0    0 0 0 0    0 0 0 1    1 0 0 0
     """
 
     def __init__(self):
         super().__init__()
-        conv = pax.Conv2D(1, 6, 4, padding="VALID")
-        weight = np.zeros((4, 4, 1, 6), dtype=np.float32)
+        conv = pax.Conv2D(1, 4, 4, padding="SAME")
+        weight = np.zeros((4, 4, 1, 4), dtype=np.float32)
         weight[0, :, :, 0] = 1
-        weight[-1, :, :, 1] = 1
-        weight[:, 0, :, 2] = 1
-        weight[:, -1, :, 3] = 1
+        weight[:, 0, :, 1] = 1
         for i in range(4):
-            weight[i, i, :, 4] = 1
-            weight[i, 3 - i, :, 5] = 1
+            weight[i, i, :, 2] = 1
+            weight[i, 3 - i, :, 3] = 1
         assert weight.shape == conv.weight.shape
         self.conv = conv.replace(weight=weight)
 
@@ -138,4 +143,4 @@ if __name__ == "__main__":
     game, reward = game.step(3)
     game, reward = game.step(3)
     game.render()
-    print(reward)
+    print("Reward", reward)
