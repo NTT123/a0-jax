@@ -54,6 +54,12 @@ class MoveOutput:
     action: chex.Array
 
 
+def batched_policy(agent, states):
+    """Apply a policy to a batch of states."""
+    policy_fn = jax.vmap(lambda a, s: a(s), in_axes=(None, 0))
+    return policy_fn(agent, states)
+
+
 @partial(jax.jit, static_argnums=(3,))
 def collect_batched_selfplay_data(
     agent, env: Enviroment, rng_key: chex.Array, batch_size: int
@@ -70,9 +76,7 @@ def collect_batched_selfplay_data(
         rng_key, rng_key_next = jax.random.split(rng_key, 2)
         state = env.canonical_observation()
         terminated = env.is_terminated()
-        prior_logits, value = jax.vmap(lambda a, s: a(s), in_axes=(None, 0))(
-            agent, state
-        )
+        prior_logits, value = batched_policy(agent, state)
         root = mctx.RootFnOutput(prior_logits=prior_logits, value=value, embedding=env)
         policy_output = mctx.gumbel_muzero_policy(
             params=agent,
@@ -83,7 +87,7 @@ def collect_batched_selfplay_data(
             gumbel_scale=1.0,
             max_num_considered_actions=env.num_actions(),
             invalid_actions=env.board != 0,
-            qtransform=mctx.qtransform_completed_by_mix_value,
+            qtransform=mctx.qtransform_by_parent_and_siblings,
         )
         env, reward = jax.vmap(step)(env, policy_output.action)
         return (env, rng_key_next), MoveOutput(
@@ -149,8 +153,8 @@ def prepare_training_data(data: MoveOutput):
 
 
 def loss_fn(net, data: TrainingExample):
-    predict_fn = jax.vmap(lambda a, s: a(s), in_axes=(None, 0))
-    action_logits, value = predict_fn(net, data.state)
+    """Sum of value loss and policy loss."""
+    action_logits, value = batched_policy(net, data.state)
     mse_loss = optax.l2_loss(value, data.value)
     mse_loss = jnp.mean(mse_loss)
     action_logits = jax.nn.log_softmax(action_logits, axis=-1)
@@ -162,34 +166,37 @@ def loss_fn(net, data: TrainingExample):
 
 @jax.jit
 def train_step(net, optim, data: TrainingExample):
+    """A training step."""
     (_, losses), grads = jax.value_and_grad(loss_fn, has_aux=True)(net, data)
     net, optim = opax.apply_gradients(net, optim, grads)
     return net, optim, losses
 
 
 def play_against_agent(agent, env):
+    """Human vs agent."""
     env = reset_env(env)
-    env.render()
     for i in range(4):
-        if i % 2 == 0:
-            print("Observation", env.canonical_observation())
+        print(f"\nStep {i}\n======\n")
+        env.render()
+        if i % 2 == 1:
+            print("Observation s =", env.canonical_observation())
             logits, value = agent(env.canonical_observation())
             logits = jnp.where(env.canonical_observation() == 0, logits, float("-inf"))
-            print(logits, value)
+            print("A(s) =", logits, "  V(s) =", value)
             action = jnp.argmax(logits, axis=-1).item()
             env, reward = step(env, action)
-            print(f"agent select action {action} get reward {reward}")
+            print(f"* agent selected action {action}, got reward {reward}")
         else:
-            action = int(input())
+            action = int(input("your action: "))
             env, reward = step(env, action)
-            print(f"human select action {action} get reward {reward}")
-        env.render()
+            print(f"* human selected action {action}, got reward {reward}")
         if env.is_terminated().item():
             break
     print("end.")
 
 
 def train(batch_size: int = 32, num_iterations: int = 50, learing_rate: float = 0.001):
+    """Train an agent by self-play."""
     agent = PolicyValueNet()
     env = Connect2Game()
     rng_key = jax.random.PRNGKey(42)
