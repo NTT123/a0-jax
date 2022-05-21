@@ -43,3 +43,9 @@ class Enviroment(pax.Module):
         """
         Return the canonical observation.
         """
+
+    def num_actions(self) -> int:
+        """
+        Return the size of the action space.
+        """
+        raise NotImplementedError()

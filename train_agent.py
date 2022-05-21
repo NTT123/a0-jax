@@ -81,7 +81,7 @@ def collect_batched_selfplay_data(
             recurrent_fn=recurrent_fn,
             num_simulations=16,
             gumbel_scale=1.0,
-            max_depth=4,
+            max_num_considered_actions=env.num_actions(),
             invalid_actions=env.board != 0,
             qtransform=mctx.qtransform_completed_by_mix_value,
         )
@@ -121,7 +121,7 @@ def prepare_training_data(data: MoveOutput):
     """Preprocess the data collected from selfplay.
 
     1. remove states after the enviroment is terminated.
-    2. compute the value at each state
+    2. compute the value at each state.
     """
     buffer = []
     N = len(data.terminated)
@@ -131,15 +131,12 @@ def prepare_training_data(data: MoveOutput):
         action = data.action[i]
         reward = data.reward[i]
         L = len(is_terminated)
-        value = 0.0
+        value = None
         for j in range(L):
             idx = L - 1 - j
             if is_terminated[idx]:
                 continue
-            if reward[idx] != 0:
-                value = reward[idx]
-            else:
-                value = -value
+            value = reward[idx] if value is None else -value
             buffer.append(
                 TrainingExample(
                     state=state[idx],
@@ -152,7 +149,8 @@ def prepare_training_data(data: MoveOutput):
 
 
 def loss_fn(net, data: TrainingExample):
-    action_logits, value = net(data.state)
+    predict_fn = jax.vmap(lambda a, s: a(s), in_axes=(None, 0))
+    action_logits, value = predict_fn(net, data.state)
     mse_loss = optax.l2_loss(value, data.value)
     mse_loss = jnp.mean(mse_loss)
     action_logits = jax.nn.log_softmax(action_logits, axis=-1)
@@ -173,9 +171,10 @@ def play_against_agent(agent, env):
     env = reset_env(env)
     env.render()
     for i in range(4):
-        if i % 2 == 1:
+        if i % 2 == 0:
             print("Observation", env.canonical_observation())
             logits, value = agent(env.canonical_observation())
+            logits = jnp.where(env.canonical_observation() == 0, logits, float("-inf"))
             print(logits, value)
             action = jnp.argmax(logits, axis=-1).item()
             env, reward = step(env, action)
@@ -187,9 +186,10 @@ def play_against_agent(agent, env):
         env.render()
         if env.is_terminated().item():
             break
+    print("end.")
 
 
-def train(batch_size: int = 32, num_iterations: int = 500, learing_rate: float = 0.001):
+def train(batch_size: int = 32, num_iterations: int = 50, learing_rate: float = 0.001):
     agent = PolicyValueNet()
     env = Connect2Game()
     rng_key = jax.random.PRNGKey(42)
@@ -220,9 +220,7 @@ def train(batch_size: int = 32, num_iterations: int = 500, learing_rate: float =
         mse_loss, cross_entropy_loss = zip(*losses)
         mse_loss = sum(mse_loss).item() / len(mse_loss)
         cross_entropy_loss = sum(cross_entropy_loss).item() / len(cross_entropy_loss)
-        print(
-            f"  train losses:  mse {mse_loss:.3f}  cross entropy {cross_entropy_loss:.3f}"
-        )
+        print(f"  train losses:  value {mse_loss:.3f}  policy {cross_entropy_loss:.3f}")
 
     play_against_agent(agent, env)
 

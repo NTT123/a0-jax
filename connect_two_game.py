@@ -33,30 +33,33 @@ class Connect2WinChecker(pax.Module):
 
 
 class Connect2Game(Enviroment):
-    """Connect2 game enviroment"""
+    """Connect-Two game environment"""
 
     board: chex.Array
     who_play: chex.Array
     count: chex.Array
     terminated: chex.Array
-    win: chex.Array
+    winner: chex.Array
 
     def __init__(self):
         super().__init__()
         self.reset()
-        self.win_checker = Connect2WinChecker()
+        self.winner_checker = Connect2WinChecker()
         self.board = jnp.zeros((4,), dtype=jnp.int32)
         self.who_play = jnp.array(1, dtype=jnp.int32)
         self.count = jnp.array(0, dtype=jnp.int32)
         self.terminated = jnp.array(0, dtype=jnp.bool_)
-        self.win = jnp.array(0, dtype=jnp.int32)
+        self.winner = jnp.array(0, dtype=jnp.int32)
+
+    def num_actions(self) -> int:
+        return 4
 
     def reset(self):
         self.board = jnp.zeros((4,), dtype=jnp.int32)
         self.who_play = jnp.array(1, dtype=jnp.int32)
         self.count = jnp.array(0, dtype=jnp.int32)
         self.terminated = jnp.array(0, dtype=jnp.bool_)
-        self.win = jnp.array(0, dtype=jnp.int32)
+        self.winner = jnp.array(0, dtype=jnp.int32)
 
     @pax.pure
     def step(self, action: chex.Array) -> Tuple["Connect2Game", chex.Array]:
@@ -67,8 +70,8 @@ class Connect2Game(Enviroment):
         invalid_move = self.board[action] != 0
         board_ = self.board.at[action].set(self.who_play)
         self.board = jmp.select_tree(self.terminated, self.board, board_)
-        self.win = self.win_checker(self.board)
-        reward = self.win * self.who_play
+        self.winner = self.winner_checker(self.board)
+        reward = self.winner * self.who_play
         self.who_play = -self.who_play
         self.count = self.count + 1
         self.terminated = jnp.logical_or(self.terminated, reward != 0)

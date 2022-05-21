@@ -18,10 +18,10 @@ class PolicyValueNet(pax.Module):
     V(s) returns the value of state s.
     """
 
-    def __init__(self):
+    def __init__(self, input_dim=4, num_actions=4):
         super().__init__()
         self.backbone = pax.Sequential(
-            pax.Linear(4, 128),
+            pax.Linear(input_dim, 128),
             jax.nn.relu,
             pax.Linear(128, 128),
             jax.nn.relu,
@@ -31,7 +31,7 @@ class PolicyValueNet(pax.Module):
         self.action_head = pax.Sequential(
             pax.Linear(128, 128),
             jax.nn.relu,
-            pax.Linear(128, 4),
+            pax.Linear(128, num_actions),
         )
         self.value_head = pax.Sequential(
             pax.Linear(128, 128),
@@ -42,13 +42,14 @@ class PolicyValueNet(pax.Module):
     def __call__(self, x: chex.Array) -> Tuple[chex.Array, chex.Array]:
         """
         Arguments:
-            x: [batch_size, 4] the board state.
+            x: [batch_size, D] the board state.
 
         Returns:
             (action_logits, value)
         """
         x = x.astype(jnp.float32)
-        x = x[None, :]  # create the batch dimension [1, 4]
+        # flatten and create the batch dimension [1, D]
+        x = jnp.reshape(x, (1, -1))
         x = self.backbone(x)
         action_logits = self.action_head(x)[0]
         value = self.value_head(x)[0, 0]
