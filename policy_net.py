@@ -20,13 +20,21 @@ class PolicyValueNet(pax.Module):
 
     def __init__(self):
         super().__init__()
-        self.action_head = pax.Sequential(
+        self.backbone = pax.Sequential(
             pax.Linear(4, 128),
+            jax.nn.relu,
+            pax.Linear(128, 128),
+            jax.nn.relu,
+            pax.Linear(128, 128),
+            jax.nn.relu,
+        )
+        self.action_head = pax.Sequential(
+            pax.Linear(128, 128),
             jax.nn.relu,
             pax.Linear(128, 4),
         )
         self.value_head = pax.Sequential(
-            pax.Linear(4, 128),
+            pax.Linear(128, 128),
             jax.nn.relu,
             pax.Linear(128, 1),
         )
@@ -40,8 +48,8 @@ class PolicyValueNet(pax.Module):
             (action_logits, value)
         """
         x = x.astype(jnp.float32)
-        x = (x - 0.5) * 2.0  # normalize to [-1, 1]
-        x = x[None, :]
+        x = x[None, :]  # create the batch dimension [1, 4]
+        x = self.backbone(x)
         action_logits = self.action_head(x)[0]
         value = self.value_head(x)[0, 0]
         value = jax.nn.tanh(value)

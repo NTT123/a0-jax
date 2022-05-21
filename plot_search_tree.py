@@ -37,7 +37,7 @@ policy_output = mctx.gumbel_muzero_policy(
     root=root,
     recurrent_fn=recurrent_fn,
     num_simulations=1280,
-    gumbel_scale=10.0,
+    gumbel_scale=1.0,
 )
 
 tree = policy_output.search_tree

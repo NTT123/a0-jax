@@ -60,6 +60,11 @@ class Connect2Game(Enviroment):
 
     @pax.pure
     def step(self, action: chex.Array) -> Tuple["Connect2Game", chex.Array]:
+        """One step of the game.
+
+        An invalid move will terminate the game with reward -1.
+        """
+        invalid_move = self.board[action] != 0
         board_ = self.board.at[action].set(self.who_play)
         self.board = jmp.select_tree(self.terminated, self.board, board_)
         self.win = self.win_checker(self.board)
@@ -68,6 +73,8 @@ class Connect2Game(Enviroment):
         self.count = self.count + 1
         self.terminated = jnp.logical_or(self.terminated, reward != 0)
         self.terminated = jnp.logical_or(self.terminated, self.count >= 4)
+        self.terminated = jnp.logical_or(self.terminated, invalid_move)
+        reward = jnp.where(invalid_move, -1.0, reward)
         return self, reward
 
     def render(self) -> None:

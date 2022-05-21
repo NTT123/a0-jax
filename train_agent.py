@@ -15,6 +15,7 @@ import jax.numpy as jnp
 import mctx
 import numpy as np
 import opax
+import optax
 import pax
 
 from alphazero import recurrent_fn, replicate, reset_env, step
@@ -28,12 +29,12 @@ class TrainingExample:
     """AlphaZero training example.
 
     state: the current state of the game.
-    action_weights: the target action weights from MCTS policy.
+    action: the target action from MCTS policy.
     value: the target value from self-play result.
     """
 
     state: chex.Array
-    action_weights: chex.Array
+    action: chex.Array
     value: chex.Array
 
 
@@ -44,13 +45,13 @@ class MoveOutput:
     state: the current state of game.
     reward: the reward after action the action from MCTS policy.
     terminated: the current state is a terminated state (bad state).
-    action_weights: the action weights from MCTS policy.
+    action: the action from MCTS policy.
     """
 
     state: chex.Array
     reward: chex.Array
     terminated: chex.Array
-    action_weights: chex.Array
+    action: chex.Array
 
 
 @partial(jax.jit, static_argnums=(3,))
@@ -82,12 +83,12 @@ def collect_batched_selfplay_data(
             gumbel_scale=1.0,
             max_depth=4,
             invalid_actions=env.board != 0,
+            qtransform=mctx.qtransform_completed_by_mix_value,
         )
-        action_weights = policy_output.action_weights
         env, reward = jax.vmap(step)(env, policy_output.action)
         return (env, rng_key_next), MoveOutput(
             state=state,
-            action_weights=action_weights,
+            action=policy_output.action,
             reward=reward,
             terminated=terminated,
         )
@@ -127,7 +128,7 @@ def prepare_training_data(data: MoveOutput):
     for i in range(N):
         state = data.state[i]
         is_terminated = data.terminated[i]
-        action_weights = data.action_weights[i]
+        action = data.action[i]
         reward = data.reward[i]
         L = len(is_terminated)
         value = 0.0
@@ -142,7 +143,7 @@ def prepare_training_data(data: MoveOutput):
             buffer.append(
                 TrainingExample(
                     state=state[idx],
-                    action_weights=action_weights[idx],
+                    action=action[idx],
                     value=np.array(value, dtype=np.float32),
                 )
             )
@@ -152,10 +153,12 @@ def prepare_training_data(data: MoveOutput):
 
 def loss_fn(net, data: TrainingExample):
     action_logits, value = net(data.state)
-    mse_loss = jnp.mean(jnp.square(value - data.value))
-    action_logits = jax.nn.log_softmax(action_logits)
-    cross_entropy_loss = jnp.einsum("NA,NA->N", data.action_weights, action_logits)
-    cross_entropy_loss = -jnp.mean(cross_entropy_loss)
+    mse_loss = optax.l2_loss(value, data.value)
+    mse_loss = jnp.mean(mse_loss)
+    action_logits = jax.nn.log_softmax(action_logits, axis=-1)
+    action = jax.nn.one_hot(data.action, num_classes=action_logits.shape[-1])
+    cross_entropy_loss = -jnp.sum(action * action_logits, axis=-1)
+    cross_entropy_loss = jnp.mean(cross_entropy_loss)
     return mse_loss + cross_entropy_loss, (mse_loss, cross_entropy_loss)
 
 
@@ -200,7 +203,7 @@ def train(batch_size: int = 32, num_iterations: int = 500, learing_rate: float =
     for iteration in range(num_iterations):
         print(f"Iteration {iteration}")
         rng_key_1, rng_key = jax.random.split(rng_key, 2)
-        data = collect_selfplay_data(agent, env, rng_key_1, batch_size, 102400)
+        data = collect_selfplay_data(agent, env, rng_key_1, batch_size, 1024)
         buffer = prepare_training_data(data)
         random.shuffle(buffer)
         buffer = jax.tree_map(lambda *xs: np.stack(xs), *buffer)
