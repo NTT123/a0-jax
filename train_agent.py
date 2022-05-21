@@ -1,5 +1,5 @@
 """
-AlphaZero training script
+AlphaZero training script.
 
 Train agent by self-play only.
 """
@@ -18,10 +18,11 @@ import opax
 import optax
 import pax
 
-from alphazero import recurrent_fn, replicate, reset_env, step
 from connect_two_game import Connect2Game
 from env import Enviroment
 from policy_net import PolicyValueNet
+from tree_search import recurrent_fn
+from utils import batched_policy, env_step, replicate, reset_env
 
 
 @chex.dataclass(frozen=True)
@@ -54,12 +55,6 @@ class MoveOutput:
     action: chex.Array
 
 
-def batched_policy(agent, states):
-    """Apply a policy to a batch of states."""
-    policy_fn = jax.vmap(lambda a, s: a(s), in_axes=(None, 0))
-    return policy_fn(agent, states)
-
-
 @partial(jax.jit, static_argnums=(3,))
 def collect_batched_selfplay_data(
     agent, env: Enviroment, rng_key: chex.Array, batch_size: int
@@ -89,7 +84,7 @@ def collect_batched_selfplay_data(
             invalid_actions=env.board != 0,
             qtransform=mctx.qtransform_by_parent_and_siblings,
         )
-        env, reward = jax.vmap(step)(env, policy_output.action)
+        env, reward = jax.vmap(env_step)(env, policy_output.action)
         return (env, rng_key_next), MoveOutput(
             state=state,
             action=policy_output.action,
@@ -184,11 +179,11 @@ def play_against_agent(agent, env):
             logits = jnp.where(env.canonical_observation() == 0, logits, float("-inf"))
             print("A(s) =", logits, "  V(s) =", value)
             action = jnp.argmax(logits, axis=-1).item()
-            env, reward = step(env, action)
+            env, reward = env_step(env, action)
             print(f"* agent selected action {action}, got reward {reward}")
         else:
             action = int(input("your action: "))
-            env, reward = step(env, action)
+            env, reward = env_step(env, action)
             print(f"* human selected action {action}, got reward {reward}")
         if env.is_terminated().item():
             break

@@ -19,9 +19,10 @@ import jax.numpy as jnp
 import mctx
 import pygraphviz
 
-from alphazero import recurrent_fn, replicate
 from connect_two_game import Connect2Game
 from policy_net import PolicyValueNet
+from tree_search import recurrent_fn
+from utils import replicate
 
 agent = PolicyValueNet()
 batch_size = 1
@@ -38,6 +39,7 @@ policy_output = mctx.gumbel_muzero_policy(
     recurrent_fn=recurrent_fn,
     num_simulations=1280,
     gumbel_scale=1.0,
+    qtransform=mctx.qtransform_by_parent_and_siblings,
 )
 
 tree = policy_output.search_tree
