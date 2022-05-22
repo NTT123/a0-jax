@@ -13,6 +13,13 @@ python train_agent.py
 ```
 
 
+## Plot the search tree
+
+```sh
+python plot_search_tree.py 
+# ./search_tree.png
+```
+
 ## Play
 
 ```sh

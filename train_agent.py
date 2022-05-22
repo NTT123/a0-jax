@@ -159,7 +159,6 @@ def loss_fn(net, data: TrainingExample):
     action_logits = jax.nn.log_softmax(action_logits, axis=-1)
     action_prs = jnp.exp(action_logits)
     target_logits = jax.nn.log_softmax(data.action_weights)
-    target_logits = jnp.clip(target_logits, a_min=-50, a_max=None)
     kl_loss = jnp.sum(action_prs * (action_logits - target_logits), axis=-1)
     kl_loss = jnp.mean(kl_loss)
 
@@ -178,26 +177,33 @@ def train_step(net, optim, data: TrainingExample):
 def train(
     batch_size: int = 32,
     num_iterations: int = 50,
+    num_self_plays_per_iteration: int = 1024,
     learing_rate: float = 0.001,
     ckpt_filename: str = "./agent.ckpt",
+    random_seed: int = 42,
+    weight_decay: float = 1e-4,
+    sgd_momentum: float = 0.9,
 ):
     """Train an agent by self-play."""
     agent = PolicyValueNet()
     env = Connect2Game()
-    rng_key = jax.random.PRNGKey(42)
+    rng_key = jax.random.PRNGKey(random_seed)
+    shuffler = random.Random(random_seed)
 
     optim = opax.chain(
-        opax.trace(0.9),
-        opax.add_decayed_weights(1e-4),
+        opax.trace(sgd_momentum),
+        opax.add_decayed_weights(weight_decay),
         opax.scale(learing_rate),
     ).init(agent.parameters())
 
     for iteration in range(num_iterations):
         print(f"Iteration {iteration}")
         rng_key_1, rng_key = jax.random.split(rng_key, 2)
-        data = collect_selfplay_data(agent, env, rng_key_1, batch_size, 1024)
+        data = collect_selfplay_data(
+            agent, env, rng_key_1, batch_size, num_self_plays_per_iteration
+        )
         buffer = prepare_training_data(data)
-        random.shuffle(buffer)
+        shuffler.shuffle(buffer)
         buffer = jax.tree_map(lambda *xs: np.stack(xs), *buffer)
         N = buffer.state.shape[0]
         losses = []
@@ -216,9 +222,8 @@ def train(
 
     # save agent's weights to disk
     print("\n>> Saving agent's weights to file", ckpt_filename)
-    weights = pax.experimental.save_weights_to_dict(agent)
     with open(ckpt_filename, "wb") as f:
-        pickle.dump(weights, f)
+        pickle.dump(agent.state_dict(), f)
     print("Done!")
 
 

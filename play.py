@@ -6,7 +6,6 @@ import pickle
 import warnings
 
 import jax.numpy as jnp
-import pax
 from fire import Fire
 
 from connect_two_game import Connect2Game
@@ -53,13 +52,11 @@ def play_against_agent(
 
 def main(ckpt_filename: str = "./agent.ckpt", human_first: bool = True):
     """Load agent's weight from disk and start the game."""
-    with open(ckpt_filename, "rb") as f:
-        weights = pickle.load(f)
-
     warnings.filterwarnings("ignore")
-    agent = PolicyValueNet()
-    agent = pax.experimental.load_weights_from_dict(agent, weights)
     env = Connect2Game()
+    agent = PolicyValueNet()
+    with open(ckpt_filename, "rb") as f:
+        agent = agent.load_state_dict(pickle.load(f))
     play_against_agent(agent, env, human_first=human_first)
 
 
