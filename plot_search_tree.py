@@ -11,7 +11,7 @@ Usage:
 
     # run
     python plot_search_tree.py
-    # output is at ./search_search.png
+    # ./search_tree.png
 """
 
 import os
