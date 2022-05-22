@@ -56,9 +56,9 @@ class MoveOutput:
     action_weights: chex.Array
 
 
-@partial(jax.jit, static_argnums=(3,))
+@partial(jax.jit, static_argnames=("batch_size",))
 def collect_batched_self_play_data(
-    agent, env: Enviroment, rng_key: chex.Array, batch_size: int
+    agent, env: Enviroment, rng_key: chex.Array, *, batch_size: int
 ):
     """Collect a batch of self-play data using mcts."""
 
@@ -111,7 +111,9 @@ def collect_self_play_data(
 
     with click.progressbar(rng_keys, label="  self play  ") as bar:
         for rng_key in bar:
-            batch = collect_batched_self_play_data(agent, env, rng_key, batch_size)
+            batch = collect_batched_self_play_data(
+                agent, env, rng_key, batch_size=batch_size
+            )
             data.append(jax.device_get(batch))
     data = jax.tree_map(lambda *xs: np.concatenate(xs), *data)
     return data

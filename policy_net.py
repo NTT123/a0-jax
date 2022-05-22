@@ -20,23 +20,12 @@ class PolicyValueNet(pax.Module):
 
     def __init__(self, input_dim=4, num_actions=4):
         super().__init__()
-        self.backbone = pax.Sequential(
-            pax.Linear(input_dim, 128),
-            jax.nn.relu,
-            pax.Linear(128, 128),
-            jax.nn.relu,
-            pax.Linear(128, 128),
-            jax.nn.relu,
-        )
+        self.backbone = pax.Sequential(pax.Linear(input_dim, 128), jax.nn.relu)
         self.action_head = pax.Sequential(
-            pax.Linear(128, 128),
-            jax.nn.relu,
-            pax.Linear(128, num_actions),
+            pax.Linear(128, 128), jax.nn.relu, pax.Linear(128, num_actions)
         )
         self.value_head = pax.Sequential(
-            pax.Linear(128, 128),
-            jax.nn.relu,
-            pax.Linear(128, 1),
+            pax.Linear(128, 128), jax.nn.relu, pax.Linear(128, 1)
         )
 
     def __call__(self, x: chex.Array) -> Tuple[chex.Array, chex.Array]:
