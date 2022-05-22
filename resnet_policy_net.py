@@ -38,7 +38,7 @@ class ResnetPolicyValueNet(pax.Module):
     """
 
     def __init__(
-        self, input_dims, num_actions: int, dim: int = 128, num_resblock: int = 4
+        self, input_dims, num_actions: int, dim: int = 128, num_resblock: int = 5
     ):
         super().__init__()
 
@@ -48,14 +48,19 @@ class ResnetPolicyValueNet(pax.Module):
         for _ in range(num_resblock):
             self.backbone >>= ResidualBlock(dim)
         self.action_head = pax.Sequential(
-            ResidualBlock(dim),
-            ResidualBlock(dim),
-            pax.Conv2D(dim, num_actions, kernel_shape=input_dims, padding="VALID"),
+            pax.Conv2D(dim, dim, 1),
+            pax.BatchNorm2D(dim, True, True),
+            jax.nn.relu,
+            pax.Conv2D(dim, self.num_actions, kernel_shape=input_dims, padding="VALID"),
         )
         self.value_head = pax.Sequential(
-            ResidualBlock(dim),
-            ResidualBlock(dim),
-            pax.Conv2D(dim, 1, kernel_shape=input_dims, padding="VALID"),
+            pax.Conv2D(dim, dim, 1),
+            pax.BatchNorm2D(dim, True, True),
+            jax.nn.relu,
+            pax.Conv2D(dim, dim, kernel_shape=input_dims, padding="VALID"),
+            jax.nn.relu,
+            pax.Conv2D(dim, 1, kernel_shape=1, padding="VALID"),
+            jnp.tanh,
         )
 
     def __call__(self, x: chex.Array, batched: bool = False):
@@ -69,7 +74,7 @@ class ResnetPolicyValueNet(pax.Module):
         x = x[..., None]  # add channel dimension
         x = self.backbone(x)
         action_logits = self.action_head(x)
-        value = jnp.tanh(self.value_head(x))
+        value = self.value_head(x)
         if batched:
             return action_logits[:, 0, 0, :], value[:, 0, 0, 0]
         else:

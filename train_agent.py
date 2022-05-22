@@ -54,9 +54,14 @@ class MoveOutput:
     action_weights: chex.Array
 
 
-@partial(jax.jit, static_argnames=("batch_size",))
+@partial(jax.jit, static_argnames=("batch_size", "num_simulations_per_move"))
 def collect_batched_self_play_data(
-    agent, env: Enviroment, rng_key: chex.Array, *, batch_size: int
+    agent,
+    env: Enviroment,
+    rng_key: chex.Array,
+    *,
+    batch_size: int,
+    num_simulations_per_move: int,
 ):
     """Collect a batch of self-play data using mcts."""
 
@@ -77,7 +82,7 @@ def collect_batched_self_play_data(
             rng_key=rng_key,
             root=root,
             recurrent_fn=recurrent_fn,
-            num_simulations=16,
+            num_simulations=num_simulations_per_move,
             gumbel_scale=1.0,
             max_num_considered_actions=env.num_actions(),
             invalid_actions=env.invalid_actions(),
@@ -100,7 +105,12 @@ def collect_batched_self_play_data(
 
 
 def collect_self_play_data(
-    agent, env, rng_key: chex.Array, batch_size: int, data_size: int
+    agent,
+    env,
+    rng_key: chex.Array,
+    batch_size: int,
+    data_size: int,
+    num_simulations_per_move: int,
 ):
     """Collect self-play data for training."""
     N = data_size // batch_size
@@ -110,7 +120,11 @@ def collect_self_play_data(
     with click.progressbar(rng_keys, label="  self play  ") as bar:
         for rng_key in bar:
             batch = collect_batched_self_play_data(
-                agent, env, rng_key, batch_size=batch_size
+                agent,
+                env,
+                rng_key,
+                batch_size=batch_size,
+                num_simulations_per_move=num_simulations_per_move,
             )
             data.append(jax.device_get(batch))
     data = jax.tree_map(lambda *xs: np.concatenate(xs), *data)
@@ -179,6 +193,7 @@ def train(
     agent_class="mlp_policy_net.MlpPolicyValueNet",
     batch_size: int = 32,
     num_iterations: int = 50,
+    num_simulations_per_move: int = 16,
     num_self_plays_per_iteration: int = 1024,
     learing_rate: float = 0.001,
     ckpt_filename: str = "./agent.ckpt",
@@ -206,7 +221,12 @@ def train(
         rng_key_1, rng_key = jax.random.split(rng_key, 2)
         agent = agent.eval()
         data = collect_self_play_data(
-            agent, env, rng_key_1, batch_size, num_self_plays_per_iteration
+            agent,
+            env,
+            rng_key_1,
+            batch_size,
+            num_self_plays_per_iteration,
+            num_simulations_per_move,
         )
         buffer = prepare_training_data(data)
         shuffler.shuffle(buffer)
