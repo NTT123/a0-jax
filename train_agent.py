@@ -132,8 +132,7 @@ def prepare_training_data(data: MoveOutput):
         reward = data.reward[i]
         L = len(is_terminated)
         value = None
-        for j in range(L):
-            idx = L - 1 - j
+        for idx in reversed(range(L)):
             if is_terminated[idx]:
                 continue
             value = reward[idx] if value is None else -value

@@ -14,7 +14,9 @@ from policy_net import PolicyValueNet
 from utils import env_step, reset_env
 
 
-def play_against_agent(agent, env, human_first=True):
+def play_against_agent(
+    agent: PolicyValueNet, env: Connect2Game, human_first: bool = True
+):
     """A game of human vs agent."""
     env = reset_env(env)
     agent_turn = 1 if human_first else 0
@@ -49,7 +51,7 @@ def play_against_agent(agent, env, human_first=True):
     print()
 
 
-def main(ckpt_filename="./agent.ckpt", human_first: bool = True):
+def main(ckpt_filename: str = "./agent.ckpt", human_first: bool = True):
     """Load agent's weight from disk and start the game."""
     with open(ckpt_filename, "rb") as f:
         weights = pickle.load(f)

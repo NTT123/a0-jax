@@ -2,7 +2,6 @@
 Monte Carlo tree search.
 """
 
-
 import chex
 import jax
 import jax.numpy as jnp

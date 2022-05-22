@@ -1,6 +1,5 @@
 """Useful functions."""
 
-
 from typing import Tuple
 
 import chex
