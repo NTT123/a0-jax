@@ -54,6 +54,9 @@ class Connect2Game(Enviroment):
     def num_actions(self) -> int:
         return 4
 
+    def invalid_actions(self) -> chex.Array:
+        return self.board != 0
+
     def reset(self):
         self.board = jnp.zeros((4,), dtype=jnp.int32)
         self.who_play = jnp.array(1, dtype=jnp.int32)

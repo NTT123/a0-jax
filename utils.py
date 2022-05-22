@@ -1,5 +1,6 @@
 """Useful functions."""
 
+import importlib
 from typing import Tuple
 
 import chex
@@ -32,3 +33,17 @@ def env_step(env: E, action: chex.Array) -> Tuple[E, chex.Array]:
     """Execute one step in the enviroment."""
     env, reward = env.step(action)
     return env, reward
+
+
+def import_game(path: str) -> E:
+    """Import a game class from a python file.
+
+    For example:
+    >> Game = import_game("connect_two_game.Connect2Game")
+
+    Game is the Connect2Game class from `connection_two_game.py`.
+    """
+    names = path.split(".")
+    mod_path, class_name = names[:-1], names[-1]
+    mod = importlib.import_module(".".join(mod_path))
+    return getattr(mod, class_name)

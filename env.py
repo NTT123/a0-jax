@@ -36,3 +36,11 @@ class Enviroment(pax.Module):
     def num_actions(self) -> int:
         """Return the size of the action space."""
         raise NotImplementedError()
+
+    def invalid_actions(self) -> chex.Array:
+        """An boolean array indicating invalid actions.
+
+        Returns:
+            invalid_action: the i-th element is true if action `i` is invalid. [num_actions].
+        """
+        raise NotImplementedError()

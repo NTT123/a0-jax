@@ -70,6 +70,9 @@ class Connect4Game(Enviroment):
     def num_actions(self):
         return self.num_cols
 
+    def invalid_actions(self) -> chex.Array:
+        return self.col_counts >= self.num_rows
+
     def reset(self):
         self.board = jnp.zeros((self.num_rows, self.num_cols), dtype=jnp.int32)
         self.who_play = jnp.array(1, dtype=jnp.int32)

@@ -19,11 +19,10 @@ import opax
 import optax
 import pax
 
-from connect_two_game import Connect2Game
 from env import Enviroment
 from policy_net import PolicyValueNet
 from tree_search import recurrent_fn
-from utils import batched_policy, env_step, replicate, reset_env
+from utils import batched_policy, env_step, import_game, replicate, reset_env
 
 
 @chex.dataclass(frozen=True)
@@ -82,7 +81,7 @@ def collect_batched_self_play_data(
             num_simulations=16,
             gumbel_scale=1.0,
             max_num_considered_actions=env.num_actions(),
-            invalid_actions=env.board != 0,
+            invalid_actions=env.invalid_actions(),
             qtransform=mctx.qtransform_by_parent_and_siblings,
         )
         env, reward = jax.vmap(env_step)(env, policy_output.action)
@@ -177,6 +176,7 @@ def train_step(net, optim, data: TrainingExample):
 
 
 def train(
+    game_class="connect_two_game.Connect2Game",
     batch_size: int = 32,
     num_iterations: int = 50,
     num_self_plays_per_iteration: int = 1024,
@@ -187,8 +187,10 @@ def train(
     sgd_momentum: float = 0.9,
 ):
     """Train an agent by self-play."""
-    agent = PolicyValueNet()
-    env = Connect2Game()
+    env = import_game(game_class)()
+    agent = PolicyValueNet(
+        input_dim=env.observation().size, num_actions=env.num_actions()
+    )
     rng_key = jax.random.PRNGKey(random_seed)
     shuffler = random.Random(random_seed)
 

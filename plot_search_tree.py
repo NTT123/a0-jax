@@ -23,13 +23,15 @@ import mctx
 import pygraphviz
 from fire import Fire
 
-from connect_two_game import Connect2Game
 from policy_net import PolicyValueNet
 from tree_search import recurrent_fn
-from utils import replicate
+from utils import import_game, replicate
 
 
-def main(ckpt_filepath: str = "./agent.ckpt"):
+def main(
+    game_class: str = "connect_two_game.Connect2Game",
+    ckpt_filepath: str = "./agent.ckpt",
+):
     """Run a `gumbel_muzero_policy` at the start position and plot the search tree."""
     agent = PolicyValueNet()
 
@@ -39,7 +41,7 @@ def main(ckpt_filepath: str = "./agent.ckpt"):
             agent = agent.load_state_dict(pickle.load(f))
 
     batch_size = 1
-    game = Connect2Game()
+    game = import_game(game_class)()
     prior_logits, value = agent(game.canonical_observation())
     root = mctx.RootFnOutput(prior_logits=prior_logits, value=value, embedding=game)
     root = replicate(root, batch_size)

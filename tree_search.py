@@ -18,8 +18,9 @@ def recurrent_fn(params, rng_key: chex.Array, action: chex.Array, embedding):
     env, reward = jax.vmap(env_step)(env, action)
     state = env.canonical_observation()
     prior_logits, value = jax.vmap(lambda a, s: a(s), in_axes=(None, 0))(agent, state)
-    assert env.board.shape == prior_logits.shape
-    prior_logits = jnp.where(env.board == 0, prior_logits, float("-inf"))
+    invalid_actions = env.invalid_actions()
+    assert invalid_actions.shape == prior_logits.shape
+    prior_logits = jnp.where(invalid_actions, float("-inf"), prior_logits)
     discount = -1.0 * jnp.ones_like(reward)
     assert discount.shape == env.terminated.shape
     # thank to the trick from
