@@ -14,7 +14,7 @@ class PolicyValueNet(pax.Module):
     """
     Predict action probability and the value.
 
-    Pi(s) returns the logit of actions to take at state s.
+    A(s) returns the logits of actions to take at state s.
     V(s) returns the value of state s.
     """
 
