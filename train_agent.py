@@ -4,6 +4,7 @@ AlphaZero training script.
 Train agent by self-play only.
 """
 
+import pickle
 import random
 from functools import partial
 
@@ -30,12 +31,12 @@ class TrainingExample:
     """AlphaZero training example.
 
     state: the current state of the game.
-    action: the target action from MCTS policy.
+    action_weights: the target action probabilities from MCTS policy.
     value: the target value from self-play result.
     """
 
     state: chex.Array
-    action: chex.Array
+    action_weights: chex.Array
     value: chex.Array
 
 
@@ -44,15 +45,15 @@ class MoveOutput:
     """The output of a single self-play move.
 
     state: the current state of game.
-    reward: the reward after action the action from MCTS policy.
+    reward: the reward after execute the action from MCTS policy.
     terminated: the current state is a terminated state (bad state).
-    action: the action from MCTS policy.
+    action_weights: the action probabilities from MCTS policy.
     """
 
     state: chex.Array
     reward: chex.Array
     terminated: chex.Array
-    action: chex.Array
+    action_weights: chex.Array
 
 
 @partial(jax.jit, static_argnums=(3,))
@@ -87,7 +88,7 @@ def collect_batched_selfplay_data(
         env, reward = jax.vmap(env_step)(env, policy_output.action)
         return (env, rng_key_next), MoveOutput(
             state=state,
-            action=policy_output.action,
+            action_weights=policy_output.action_weights,
             reward=reward,
             terminated=terminated,
         )
@@ -127,7 +128,7 @@ def prepare_training_data(data: MoveOutput):
     for i in range(N):
         state = data.state[i]
         is_terminated = data.terminated[i]
-        action = data.action[i]
+        action_weights = data.action_weights[i]
         reward = data.reward[i]
         L = len(is_terminated)
         value = None
@@ -139,7 +140,7 @@ def prepare_training_data(data: MoveOutput):
             buffer.append(
                 TrainingExample(
                     state=state[idx],
-                    action=action[idx],
+                    action_weights=action_weights[idx],
                     value=np.array(value, dtype=np.float32),
                 )
             )
@@ -150,13 +151,21 @@ def prepare_training_data(data: MoveOutput):
 def loss_fn(net, data: TrainingExample):
     """Sum of value loss and policy loss."""
     action_logits, value = batched_policy(net, data.state)
+
+    # value loss (mse)
     mse_loss = optax.l2_loss(value, data.value)
     mse_loss = jnp.mean(mse_loss)
+
+    # policy loss (KL)
     action_logits = jax.nn.log_softmax(action_logits, axis=-1)
-    action = jax.nn.one_hot(data.action, num_classes=action_logits.shape[-1])
-    cross_entropy_loss = -jnp.sum(action * action_logits, axis=-1)
-    cross_entropy_loss = jnp.mean(cross_entropy_loss)
-    return mse_loss + cross_entropy_loss, (mse_loss, cross_entropy_loss)
+    action_prs = jnp.exp(action_logits)
+    target_logits = jax.nn.log_softmax(data.action_weights)
+    target_logits = jnp.clip(target_logits, a_min=-50, a_max=None)
+    kl_loss = jnp.sum(action_prs * (action_logits - target_logits), axis=-1)
+    kl_loss = jnp.mean(kl_loss)
+
+    # return the total loss
+    return mse_loss + kl_loss, (mse_loss, kl_loss)
 
 
 @jax.jit
@@ -167,30 +176,12 @@ def train_step(net, optim, data: TrainingExample):
     return net, optim, losses
 
 
-def play_against_agent(agent, env):
-    """Human vs agent."""
-    env = reset_env(env)
-    for i in range(4):
-        print(f"\nStep {i}\n======\n")
-        env.render()
-        if i % 2 == 1:
-            print("Observation s =", env.canonical_observation())
-            logits, value = agent(env.canonical_observation())
-            logits = jnp.where(env.canonical_observation() == 0, logits, float("-inf"))
-            print("A(s) =", logits, "  V(s) =", value)
-            action = jnp.argmax(logits, axis=-1).item()
-            env, reward = env_step(env, action)
-            print(f"* agent selected action {action}, got reward {reward}")
-        else:
-            action = int(input("your action: "))
-            env, reward = env_step(env, action)
-            print(f"* human selected action {action}, got reward {reward}")
-        if env.is_terminated().item():
-            break
-    print("end.")
-
-
-def train(batch_size: int = 32, num_iterations: int = 50, learing_rate: float = 0.001):
+def train(
+    batch_size: int = 32,
+    num_iterations: int = 50,
+    learing_rate: float = 0.001,
+    ckpt_filename: str = "./agent.ckpt",
+):
     """Train an agent by self-play."""
     agent = PolicyValueNet()
     env = Connect2Game()
@@ -219,12 +210,17 @@ def train(batch_size: int = 32, num_iterations: int = 50, learing_rate: float = 
                 agent, optim, loss = train_step(agent, optim, batch)
                 losses.append(loss)
 
-        mse_loss, cross_entropy_loss = zip(*losses)
-        mse_loss = sum(mse_loss).item() / len(mse_loss)
-        cross_entropy_loss = sum(cross_entropy_loss).item() / len(cross_entropy_loss)
-        print(f"  train losses:  value {mse_loss:.3f}  policy {cross_entropy_loss:.3f}")
+        value_loss, policy_loss = zip(*losses)
+        value_loss = sum(value_loss).item() / len(value_loss)
+        policy_loss = sum(policy_loss).item() / len(policy_loss)
+        print(f"  train losses:  value {value_loss:.3f}  policy {policy_loss:.3f}")
 
-    play_against_agent(agent, env)
+    # save agent's weights to disk
+    print("\n>> Saving agent's weights to file", ckpt_filename)
+    weights = pax.experimental.save_weights_to_dict(agent)
+    with open(ckpt_filename, "wb") as f:
+        pickle.dump(weights, f)
+    print("Done!")
 
 
 if __name__ == "__main__":

@@ -11,3 +11,10 @@ pip install -r requirements.txt
 ```sh
 python train_agent.py
 ```
+
+
+## Play
+
+```sh
+python play.py
+```

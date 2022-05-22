@@ -1,4 +1,4 @@
-"""Useful function."""
+"""Useful functions."""
 
 
 from typing import Tuple
