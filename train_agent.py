@@ -57,10 +57,10 @@ class MoveOutput:
 
 
 @partial(jax.jit, static_argnums=(3,))
-def collect_batched_selfplay_data(
+def collect_batched_self_play_data(
     agent, env: Enviroment, rng_key: chex.Array, batch_size: int
 ):
-    """Collect a batch of selfplay data using mcts."""
+    """Collect a batch of self-play data using mcts."""
 
     def single_move(prev, inputs):
         """Execute one self-play move using MCTS.
@@ -95,30 +95,30 @@ def collect_batched_selfplay_data(
 
     env = reset_env(env)
     env = replicate(env, batch_size)
-    _, selfplay_data = pax.scan(
+    _, self_play_data = pax.scan(
         single_move, (env, rng_key), None, length=4, unroll=4, time_major=False
     )
-    return selfplay_data
+    return self_play_data
 
 
-def collect_selfplay_data(
+def collect_self_play_data(
     agent, env, rng_key: chex.Array, batch_size: int, data_size: int
 ):
-    """Collect selfplay data for training."""
+    """Collect self-play data for training."""
     N = data_size // batch_size
     rng_keys = jax.random.split(rng_key, N)
     data = []
 
     with click.progressbar(rng_keys, label="  self play  ") as bar:
         for rng_key in bar:
-            batch = collect_batched_selfplay_data(agent, env, rng_key, batch_size)
+            batch = collect_batched_self_play_data(agent, env, rng_key, batch_size)
             data.append(jax.device_get(batch))
     data = jax.tree_map(lambda *xs: np.concatenate(xs), *data)
     return data
 
 
 def prepare_training_data(data: MoveOutput):
-    """Preprocess the data collected from selfplay.
+    """Preprocess the data collected from self-play.
 
     1. remove states after the enviroment is terminated.
     2. compute the value at each state.
@@ -199,7 +199,7 @@ def train(
     for iteration in range(num_iterations):
         print(f"Iteration {iteration}")
         rng_key_1, rng_key = jax.random.split(rng_key, 2)
-        data = collect_selfplay_data(
+        data = collect_self_play_data(
             agent, env, rng_key_1, batch_size, num_self_plays_per_iteration
         )
         buffer = prepare_training_data(data)
