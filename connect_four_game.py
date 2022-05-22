@@ -129,6 +129,9 @@ class Connect4Game(Enviroment):
     def is_terminated(self):
         return self.terminated
 
+    def max_num_steps(self) -> int:
+        return self.num_cols * self.num_rows
+
 
 if __name__ == "__main__":
     game = Connect4Game()

@@ -23,25 +23,28 @@ import mctx
 import pygraphviz
 from fire import Fire
 
-from policy_net import PolicyValueNet
 from tree_search import recurrent_fn
-from utils import import_game, replicate
+from utils import import_class, replicate
 
 
 def main(
     game_class: str = "connect_two_game.Connect2Game",
+    agent_class="mlp_policy_net.MlpPolicyValueNet",
     ckpt_filepath: str = "./agent.ckpt",
+    num_simulations: int = 1024,
 ):
     """Run a `gumbel_muzero_policy` at the start position and plot the search tree."""
-    agent = PolicyValueNet()
-
+    batch_size = 1
+    game = import_class(game_class)()
+    agent = import_class(agent_class)(
+        input_dims=game.observation().shape,
+        num_actions=game.num_actions(),
+    )
     if os.path.isfile(ckpt_filepath):
         print("Loading checkpoint at", ckpt_filepath)
         with open(ckpt_filepath, "rb") as f:
             agent = agent.load_state_dict(pickle.load(f))
-
-    batch_size = 1
-    game = import_game(game_class)()
+    agent = agent.eval()
     prior_logits, value = agent(game.canonical_observation())
     root = mctx.RootFnOutput(prior_logits=prior_logits, value=value, embedding=game)
     root = replicate(root, batch_size)
@@ -52,13 +55,12 @@ def main(
         rng_key=rng_key,
         root=root,
         recurrent_fn=recurrent_fn,
-        num_simulations=1280,
+        num_simulations=num_simulations,
         gumbel_scale=1.0,
         qtransform=mctx.qtransform_by_parent_and_siblings,
     )
 
     tree = policy_output.search_tree
-    action_labels = ["a0", "a1", "a2", "a3"]
 
     def node_to_str(node_i, reward=0, discount=1):
         return (
@@ -74,7 +76,7 @@ def main(
         node_index = jnp.full([batch_size], node_i)
         probs = jax.nn.softmax(tree.children_prior_logits[batch_index, node_i])
         return (
-            f"{action_labels[a_i]}\n"
+            f"a{a_i}\n"
             f"Q: {tree.qvalues(node_index)[batch_index, a_i]:.2f}\n"
             f"p: {probs[a_i]:.2f}\n"
         )

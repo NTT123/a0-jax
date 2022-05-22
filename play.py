@@ -9,13 +9,10 @@ import jax.numpy as jnp
 from fire import Fire
 
 from env import Enviroment
-from policy_net import PolicyValueNet
-from utils import env_step, import_game, reset_env
+from utils import env_step, import_class, reset_env
 
 
-def play_against_agent(
-    agent: PolicyValueNet, env: Enviroment, human_first: bool = True
-):
+def play_against_agent(agent, env: Enviroment, human_first: bool = True):
     """A game of human vs agent."""
     env = reset_env(env)
     agent_turn = 1 if human_first else 0
@@ -54,15 +51,20 @@ def play_against_agent(
 
 def main(
     game_class: str = "connect_two_game.Connect2Game",
+    agent_class="mlp_policy_net.MlpPolicyValueNet",
     ckpt_filename: str = "./agent.ckpt",
     human_first: bool = True,
 ):
     """Load agent's weight from disk and start the game."""
     warnings.filterwarnings("ignore")
-    env = import_game(game_class)()
-    agent = PolicyValueNet()
+    env = import_class(game_class)()
+    agent = import_class(agent_class)(
+        input_dims=env.observation().shape,
+        num_actions=env.num_actions(),
+    )
     with open(ckpt_filename, "rb") as f:
         agent = agent.load_state_dict(pickle.load(f))
+    agent = agent.eval()
     play_against_agent(agent, env, human_first=human_first)
 
 

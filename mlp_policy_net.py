@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import pax
 
 
-class PolicyValueNet(pax.Module):
+class MlpPolicyValueNet(pax.Module):
     """
     Predict action probability and the value.
 
@@ -18,9 +18,9 @@ class PolicyValueNet(pax.Module):
     V(s) returns the value of state s.
     """
 
-    def __init__(self, input_dim=4, num_actions=4):
+    def __init__(self, input_dims=(4,), num_actions=4):
         super().__init__()
-        self.backbone = pax.Sequential(pax.Linear(input_dim, 128), jax.nn.relu)
+        self.backbone = pax.Sequential(pax.Linear(input_dims[0], 128), jax.nn.relu)
         self.action_head = pax.Sequential(
             pax.Linear(128, 128), jax.nn.relu, pax.Linear(128, num_actions)
         )

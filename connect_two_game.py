@@ -104,3 +104,6 @@ class Connect2Game(Enviroment):
 
     def is_terminated(self):
         return self.terminated
+
+    def max_num_steps(self) -> int:
+        return 4

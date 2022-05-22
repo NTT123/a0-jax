@@ -44,3 +44,7 @@ class Enviroment(pax.Module):
             invalid_action: the i-th element is true if action `i` is invalid. [num_actions].
         """
         raise NotImplementedError()
+
+    def max_num_steps(self) -> int:
+        """Return the maximum number of steps until the game is terminated."""
+        raise NotImplementedError()

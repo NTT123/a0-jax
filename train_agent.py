@@ -20,9 +20,8 @@ import optax
 import pax
 
 from env import Enviroment
-from policy_net import PolicyValueNet
 from tree_search import recurrent_fn
-from utils import batched_policy, env_step, import_game, replicate, reset_env
+from utils import batched_policy, env_step, import_class, replicate, reset_env
 
 
 @chex.dataclass(frozen=True)
@@ -95,7 +94,7 @@ def collect_batched_self_play_data(
     env = reset_env(env)
     env = replicate(env, batch_size)
     _, self_play_data = pax.scan(
-        single_move, (env, rng_key), None, length=4, unroll=4, time_major=False
+        single_move, (env, rng_key), None, length=env.max_num_steps(), time_major=False
     )
     return self_play_data
 
@@ -177,6 +176,7 @@ def train_step(net, optim, data: TrainingExample):
 
 def train(
     game_class="connect_two_game.Connect2Game",
+    agent_class="mlp_policy_net.MlpPolicyValueNet",
     batch_size: int = 32,
     num_iterations: int = 50,
     num_self_plays_per_iteration: int = 1024,
@@ -187,9 +187,10 @@ def train(
     sgd_momentum: float = 0.9,
 ):
     """Train an agent by self-play."""
-    env = import_game(game_class)()
-    agent = PolicyValueNet(
-        input_dim=env.observation().size, num_actions=env.num_actions()
+    env = import_class(game_class)()
+    agent = import_class(agent_class)(
+        input_dims=env.observation().shape,
+        num_actions=env.num_actions(),
     )
     rng_key = jax.random.PRNGKey(random_seed)
     shuffler = random.Random(random_seed)
@@ -203,6 +204,7 @@ def train(
     for iteration in range(num_iterations):
         print(f"Iteration {iteration}")
         rng_key_1, rng_key = jax.random.split(rng_key, 2)
+        agent = agent.eval()
         data = collect_self_play_data(
             agent, env, rng_key_1, batch_size, num_self_plays_per_iteration
         )
@@ -211,6 +213,7 @@ def train(
         buffer = jax.tree_map(lambda *xs: np.stack(xs), *buffer)
         N = buffer.state.shape[0]
         losses = []
+        agent = agent.train()
         with click.progressbar(
             range(0, N - batch_size, batch_size), label="  train agent"
         ) as bar:
@@ -223,11 +226,10 @@ def train(
         value_loss = sum(value_loss).item() / len(value_loss)
         policy_loss = sum(policy_loss).item() / len(policy_loss)
         print(f"  train losses:  value {value_loss:.3f}  policy {policy_loss:.3f}")
-
-    # save agent's weights to disk
-    print("\n>> Saving agent's weights to file", ckpt_filename)
-    with open(ckpt_filename, "wb") as f:
-        pickle.dump(agent.state_dict(), f)
+        # save agent's weights to disk
+        print("  saving agent's weights to file", ckpt_filename)
+        with open(ckpt_filename, "wb") as f:
+            pickle.dump(agent.state_dict(), f)
     print("Done!")
 
 

@@ -35,11 +35,11 @@ def env_step(env: E, action: chex.Array) -> Tuple[E, chex.Array]:
     return env, reward
 
 
-def import_game(path: str) -> E:
-    """Import a game class from a python file.
+def import_class(path: str) -> E:
+    """Import a class from a python file.
 
     For example:
-    >> Game = import_game("connect_two_game.Connect2Game")
+    >> Game = import_class("connect_two_game.Connect2Game")
 
     Game is the Connect2Game class from `connection_two_game.py`.
     """
