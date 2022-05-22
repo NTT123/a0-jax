@@ -8,7 +8,7 @@ pip install -r requirements.txt
 
 ## Train agent
 
-### Connect-Two game
+#### Connect-Two game
 
 
 ```sh
@@ -16,7 +16,7 @@ python train_agent.py
 ```
 
 
-### Connect-Four game
+#### Connect-Four game
 
 ```sh
 python train_agent.py \
