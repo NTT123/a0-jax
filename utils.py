@@ -11,10 +11,13 @@ import pax
 from env import Enviroment as E
 
 
+@pax.pure
 def batched_policy(agent, states):
-    """Apply a policy to a batch of states."""
-    policy_fn = jax.vmap(lambda a, s: a(s), in_axes=(None, 0))
-    return policy_fn(agent, states)
+    """Apply a policy to a batch of states.
+
+    Also return the updated agent.
+    """
+    return agent, agent(states, batched=True)
 
 
 def replicate(value: chex.ArrayTree, repeat: int) -> chex.ArrayTree:

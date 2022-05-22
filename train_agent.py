@@ -70,7 +70,7 @@ def collect_batched_self_play_data(
         rng_key, rng_key_next = jax.random.split(rng_key, 2)
         state = env.canonical_observation()
         terminated = env.is_terminated()
-        prior_logits, value = batched_policy(agent, state)
+        _, (prior_logits, value) = batched_policy(agent, state)
         root = mctx.RootFnOutput(prior_logits=prior_logits, value=value, embedding=env)
         policy_output = mctx.gumbel_muzero_policy(
             params=agent,
@@ -149,7 +149,7 @@ def prepare_training_data(data: MoveOutput):
 
 def loss_fn(net, data: TrainingExample):
     """Sum of value loss and policy loss."""
-    action_logits, value = batched_policy(net, data.state)
+    net, (action_logits, value) = batched_policy(net, data.state)
 
     # value loss (mse)
     mse_loss = optax.l2_loss(value, data.value)
@@ -163,13 +163,13 @@ def loss_fn(net, data: TrainingExample):
     kl_loss = jnp.mean(kl_loss)
 
     # return the total loss
-    return mse_loss + kl_loss, (mse_loss, kl_loss)
+    return mse_loss + kl_loss, (net, (mse_loss, kl_loss))
 
 
 @jax.jit
 def train_step(net, optim, data: TrainingExample):
     """A training step."""
-    (_, losses), grads = jax.value_and_grad(loss_fn, has_aux=True)(net, data)
+    (_, (net, losses)), grads = jax.value_and_grad(loss_fn, has_aux=True)(net, data)
     net, optim = opax.apply_gradients(net, optim, grads)
     return net, optim, losses
 

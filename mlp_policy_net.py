@@ -7,6 +7,7 @@ from typing import Tuple
 import chex
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pax
 
 
@@ -20,27 +21,35 @@ class MlpPolicyValueNet(pax.Module):
 
     def __init__(self, input_dims=(4,), num_actions=4):
         super().__init__()
-        self.backbone = pax.Sequential(pax.Linear(input_dims[0], 128), jax.nn.relu)
+        self.backbone = pax.Sequential(
+            pax.Linear(np.prod(input_dims), 128), jax.nn.relu
+        )
         self.action_head = pax.Sequential(
             pax.Linear(128, 128), jax.nn.relu, pax.Linear(128, num_actions)
         )
         self.value_head = pax.Sequential(
             pax.Linear(128, 128), jax.nn.relu, pax.Linear(128, 1)
         )
+        self.input_dims = input_dims
 
-    def __call__(self, x: chex.Array) -> Tuple[chex.Array, chex.Array]:
+    def __call__(
+        self, x: chex.Array, batched: bool = False
+    ) -> Tuple[chex.Array, chex.Array]:
         """
         Arguments:
-            x: [batch_size, D] the board state.
+            x: the board state. [batch_size, D]  or [D]
 
         Returns:
             (action_logits, value)
         """
         x = x.astype(jnp.float32)
-        # flatten and create the batch dimension [1, D]
-        x = jnp.reshape(x, (1, -1))
+        if not batched:
+            x = x[None]  # add batch dimension
+        x = jnp.reshape(x, (x.shape[0], -1))  # flatten before input mlp
         x = self.backbone(x)
-        action_logits = self.action_head(x)[0]
-        value = self.value_head(x)[0, 0]
-        value = jax.nn.tanh(value)
-        return action_logits, value
+        action_logits = self.action_head(x)
+        value = jax.nn.tanh(self.value_head(x))
+        if batched:
+            return action_logits[:, :], value[:, 0]
+        else:
+            return action_logits[0, :], value[0, 0]

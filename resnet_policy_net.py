@@ -1,3 +1,4 @@
+import chex
 import jax
 import jax.numpy as jnp
 import pax
@@ -37,7 +38,7 @@ class ResnetPolicyValueNet(pax.Module):
     """
 
     def __init__(
-        self, input_dims: int, num_actions: int, dim: int = 128, num_resblock: int = 4
+        self, input_dims, num_actions: int, dim: int = 128, num_resblock: int = 4
     ):
         super().__init__()
 
@@ -57,10 +58,19 @@ class ResnetPolicyValueNet(pax.Module):
             pax.Conv2D(dim, 1, kernel_shape=input_dims, padding="VALID"),
         )
 
-    def __call__(self, x):
+    def __call__(self, x: chex.Array, batched: bool = False):
+        """Compute the action logits and value.
+
+        Support both batched and unbatched states.
+        """
         x = x.astype(jnp.float32)
-        x = jnp.reshape(x, [1, *self.input_dims] + [1])
+        if not batched:
+            x = x[None]  # add the batch dimension
+        x = x[..., None]  # add channel dimension
         x = self.backbone(x)
         action_logits = self.action_head(x)
         value = jnp.tanh(self.value_head(x))
-        return action_logits[0, 0, 0, :], value[0, 0, 0, 0]
+        if batched:
+            return action_logits[:, 0, 0, :], value[:, 0, 0, 0]
+        else:
+            return action_logits[0, 0, 0, :], value[0, 0, 0, 0]
