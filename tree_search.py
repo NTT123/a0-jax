@@ -7,11 +7,12 @@ import jax
 import jax.numpy as jnp
 import mctx
 
-from utils import env_step
+from env import Enviroment as E
+from utils import batched_policy, env_step
 
 
 def recurrent_fn(params, rng_key: chex.Array, action: chex.Array, embedding):
-    """One simulation step"""
+    """One simulation step in MCTS."""
     del rng_key
     agent = params
     env = embedding
@@ -33,3 +34,25 @@ def recurrent_fn(params, rng_key: chex.Array, action: chex.Array, embedding):
         terminated=terminated,
     )
     return recurrent_fn_output, env
+
+
+def improve_policy_with_mcts(
+    agent, env: E, rec_fn, rng_key: chex.Array, num_simulations: int
+):
+    """Improve agent policy using MCTS.
+
+    Returns:
+        An improved policy.
+    """
+    state = env.canonical_observation()
+    _, (prior_logits, value) = batched_policy(agent, state)
+    root = mctx.RootFnOutput(prior_logits=prior_logits, value=value, embedding=env)
+    policy_output = mctx.muzero_policy(
+        params=agent,
+        rng_key=rng_key,
+        root=root,
+        recurrent_fn=rec_fn,
+        num_simulations=num_simulations,
+        invalid_actions=env.invalid_actions(),
+    )
+    return policy_output

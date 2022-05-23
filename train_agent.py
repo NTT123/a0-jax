@@ -13,14 +13,13 @@ import click
 import fire
 import jax
 import jax.numpy as jnp
-import mctx
 import numpy as np
 import opax
 import optax
 import pax
 
 from env import Enviroment
-from tree_search import recurrent_fn
+from tree_search import improve_policy_with_mcts, recurrent_fn
 from utils import batched_policy, env_step, import_class, replicate, reset_env
 
 
@@ -75,15 +74,8 @@ def collect_batched_self_play_data(
         rng_key, rng_key_next = jax.random.split(rng_key, 2)
         state = env.canonical_observation()
         terminated = env.is_terminated()
-        _, (prior_logits, value) = batched_policy(agent, state)
-        root = mctx.RootFnOutput(prior_logits=prior_logits, value=value, embedding=env)
-        policy_output = mctx.muzero_policy(
-            params=agent,
-            rng_key=rng_key,
-            root=root,
-            recurrent_fn=recurrent_fn,
-            num_simulations=num_simulations_per_move,
-            invalid_actions=env.invalid_actions(),
+        policy_output = improve_policy_with_mcts(
+            agent, env, recurrent_fn, rng_key, num_simulations_per_move
         )
         env, reward = jax.vmap(env_step)(env, policy_output.action)
         return (env, rng_key_next), MoveOutput(

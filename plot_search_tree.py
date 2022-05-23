@@ -19,11 +19,10 @@ import pickle
 
 import jax
 import jax.numpy as jnp
-import mctx
 import pygraphviz
 from fire import Fire
 
-from tree_search import recurrent_fn
+from tree_search import improve_policy_with_mcts, recurrent_fn
 from utils import import_class, replicate
 
 
@@ -45,19 +44,11 @@ def main(
         with open(ckpt_filepath, "rb") as f:
             agent = agent.load_state_dict(pickle.load(f))
     agent = agent.eval()
-    prior_logits, value = agent(game.canonical_observation())
-    root = mctx.RootFnOutput(prior_logits=prior_logits, value=value, embedding=game)
-    root = replicate(root, batch_size)
+    game = replicate(game, batch_size)
     rng_key = jax.random.PRNGKey(42)
-
-    policy_output = mctx.muzero_policy(
-        params=agent,
-        rng_key=rng_key,
-        root=root,
-        recurrent_fn=recurrent_fn,
-        num_simulations=num_simulations,
+    policy_output = improve_policy_with_mcts(
+        agent, game, recurrent_fn, rng_key, num_simulations
     )
-
     tree = policy_output.search_tree
 
     def node_to_str(node_i, reward=0, discount=1):
@@ -67,7 +58,7 @@ def main(
             f"Discount: {discount:.2f}\n"
             f"Value: {tree.node_values[batch_index, node_i]:.2f}\n"
             f"Visits: {tree.node_visits[batch_index, node_i]}\n"
-            f"Terminated: {tree.children_terminated[batch_index, node_i]}\n"
+            f"Terminated: {tree.node_terminated[batch_index, node_i]}\n"
         )
 
     def edge_to_str(node_i, a_i):
