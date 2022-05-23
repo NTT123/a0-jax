@@ -33,7 +33,7 @@ def main(
     ckpt_filepath: str = "./agent.ckpt",
     num_simulations: int = 1024,
 ):
-    """Run a `gumbel_muzero_policy` at the start position and plot the search tree."""
+    """Run a `muzero_policy` at the start position and plot the search tree."""
     batch_size = 1
     game = import_class(game_class)()
     agent = import_class(agent_class)(
@@ -50,14 +50,12 @@ def main(
     root = replicate(root, batch_size)
     rng_key = jax.random.PRNGKey(42)
 
-    policy_output = mctx.gumbel_muzero_policy(
+    policy_output = mctx.muzero_policy(
         params=agent,
         rng_key=rng_key,
         root=root,
         recurrent_fn=recurrent_fn,
         num_simulations=num_simulations,
-        gumbel_scale=1.0,
-        qtransform=mctx.qtransform_by_parent_and_siblings,
     )
 
     tree = policy_output.search_tree

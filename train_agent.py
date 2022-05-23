@@ -77,16 +77,13 @@ def collect_batched_self_play_data(
         terminated = env.is_terminated()
         _, (prior_logits, value) = batched_policy(agent, state)
         root = mctx.RootFnOutput(prior_logits=prior_logits, value=value, embedding=env)
-        policy_output = mctx.gumbel_muzero_policy(
+        policy_output = mctx.muzero_policy(
             params=agent,
             rng_key=rng_key,
             root=root,
             recurrent_fn=recurrent_fn,
             num_simulations=num_simulations_per_move,
-            gumbel_scale=1.0,
-            max_num_considered_actions=env.num_actions(),
             invalid_actions=env.invalid_actions(),
-            qtransform=mctx.qtransform_by_parent_and_siblings,
         )
         env, reward = jax.vmap(env_step)(env, policy_output.action)
         return (env, rng_key_next), MoveOutput(
@@ -247,7 +244,6 @@ def train(
         policy_loss = sum(policy_loss).item() / len(policy_loss)
         print(f"  train losses:  value {value_loss:.3f}  policy {policy_loss:.3f}")
         # save agent's weights to disk
-        print("  saving agent's weights to file", ckpt_filename)
         with open(ckpt_filename, "wb") as f:
             pickle.dump(agent.state_dict(), f)
     print("Done!")
