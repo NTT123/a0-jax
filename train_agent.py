@@ -22,6 +22,8 @@ from env import Enviroment
 from tree_search import improve_policy_with_mcts, recurrent_fn
 from utils import batched_policy, env_step, import_class, replicate, reset_env
 
+EPSILON = 1e-9  # a very small positive value
+
 
 @chex.dataclass(frozen=True)
 class TrainingExample:
@@ -158,11 +160,12 @@ def loss_fn(net, data: TrainingExample):
     mse_loss = optax.l2_loss(value, data.value)
     mse_loss = jnp.mean(mse_loss)
 
-    # policy loss (KL)
+    # policy loss (KL(target_policy', agent_policy))
+    target_pr = data.action_weights
+    # to avoid log(0) = nan
+    target_pr = jnp.where(target_pr == 0, EPSILON, target_pr)
     action_logits = jax.nn.log_softmax(action_logits, axis=-1)
-    action_prs = jnp.exp(action_logits)
-    target_logits = jax.nn.log_softmax(data.action_weights)
-    kl_loss = jnp.sum(action_prs * (action_logits - target_logits), axis=-1)
+    kl_loss = jnp.sum(target_pr * (jnp.log(target_pr) - action_logits), axis=-1)
     kl_loss = jnp.mean(kl_loss)
 
     # return the total loss

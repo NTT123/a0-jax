@@ -48,7 +48,8 @@ def play_against_agent(
                 value = policy_output.search_tree.node_values[0, root_idx]
             else:
                 logits, value = agent(s)
-            logits = jnp.where(env.invalid_actions(), float("-inf"), logits)
+            # the network should be able to learn to avoid invalid actions
+            # logits = jnp.where(env.invalid_actions(), float("-inf"), logits)
             print("#  A(s) =", logits)
             print("#  V(s) =", value)
             action = jnp.argmax(logits, axis=-1).item()
