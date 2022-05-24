@@ -19,7 +19,7 @@ def play_against_agent(
     env: Enviroment,
     human_first: bool = True,
     enable_mcts: bool = False,
-    num_simulations_per_move: int = 128,
+    num_simulations_per_move: int = 1024,
 ):
     """A game of human vs agent."""
     env = reset_env(env)
@@ -73,7 +73,7 @@ def play_against_agent(
 
 def main(
     game_class: str = "connect_two_game.Connect2Game",
-    agent_class="mlp_policy_net.MlpPolicyValueNet",
+    agent_class="mlp_policy.MlpPolicyValueNet",
     ckpt_filename: str = "./agent.ckpt",
     human_first: bool = True,
     enable_mcts: bool = False,

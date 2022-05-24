@@ -47,12 +47,15 @@ def improve_policy_with_mcts(
     state = env.canonical_observation()
     _, (prior_logits, value) = batched_policy(agent, state)
     root = mctx.RootFnOutput(prior_logits=prior_logits, value=value, embedding=env)
-    policy_output = mctx.muzero_policy(
+    policy_output = mctx.gumbel_muzero_policy(
         params=agent,
         rng_key=rng_key,
         root=root,
         recurrent_fn=rec_fn,
         num_simulations=num_simulations,
+        max_num_considered_actions=env.num_actions(),
         invalid_actions=env.invalid_actions(),
+        qtransform=mctx.qtransform_by_parent_and_siblings,
+        gumbel_scale=1.0,
     )
     return policy_output

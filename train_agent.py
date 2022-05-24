@@ -182,7 +182,7 @@ def train_step(net, optim, data: TrainingExample):
 
 def train(
     game_class="connect_two_game.Connect2Game",
-    agent_class="mlp_policy_net.MlpPolicyValueNet",
+    agent_class="mlp_policy.MlpPolicyValueNet",
     batch_size: int = 32,
     num_iterations: int = 50,
     num_simulations_per_move: int = 16,
