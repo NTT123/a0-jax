@@ -71,16 +71,21 @@ def collect_batched_self_play_data(
 
         This function is designed to be compatible with jax.scan.
         """
-        env, rng_key = prev
+        env, rng_key, step = prev
         del inputs
         rng_key, rng_key_next = jax.random.split(rng_key, 2)
         state = env.canonical_observation()
         terminated = env.is_terminated()
         policy_output = improve_policy_with_mcts(
-            agent, env, recurrent_fn, rng_key, num_simulations_per_move
+            agent,
+            env,
+            recurrent_fn,
+            rng_key,
+            num_simulations_per_move,
+            temperature=jnp.where(step > 20, 0.3, 1.0),
         )
         env, reward = jax.vmap(env_step)(env, policy_output.action)
-        return (env, rng_key_next), MoveOutput(
+        return (env, rng_key_next, step + 1), MoveOutput(
             state=state,
             action_weights=policy_output.action_weights,
             reward=reward,
@@ -89,8 +94,13 @@ def collect_batched_self_play_data(
 
     env = reset_env(env)
     env = replicate(env, batch_size)
+    step = jnp.array(1)
     _, self_play_data = pax.scan(
-        single_move, (env, rng_key), None, length=env.max_num_steps(), time_major=False
+        single_move,
+        (env, rng_key, step),
+        None,
+        length=env.max_num_steps(),
+        time_major=False,
     )
     return self_play_data
 
@@ -191,7 +201,6 @@ def train(
     ckpt_filename: str = "./agent.ckpt",
     random_seed: int = 42,
     weight_decay: float = 1e-4,
-    sgd_momentum: float = 0.9,
 ):
     """Train an agent by self-play."""
     env = import_class(game_class)()
@@ -202,11 +211,7 @@ def train(
     rng_key = jax.random.PRNGKey(random_seed)
     shuffler = random.Random(random_seed)
 
-    optim = opax.chain(
-        opax.trace(sgd_momentum),
-        opax.add_decayed_weights(weight_decay),
-        opax.scale(learing_rate),
-    ).init(agent.parameters())
+    optim = opax.adamw(learing_rate, weight_decay=weight_decay).init(agent.parameters())
 
     for iteration in range(num_iterations):
         print(f"Iteration {iteration}")

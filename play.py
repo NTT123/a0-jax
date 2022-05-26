@@ -24,6 +24,11 @@ def play_against_agent(
     """A game of human vs agent."""
     env = reset_env(env)
     agent_turn = 1 if human_first else 0
+    rng_key = jax.random.PRNGKey(42)
+    mcts_policy = jax.jit(
+        improve_policy_with_mcts,
+        static_argnames=("temperature", "num_simulations"),
+    )
     for i in range(1000):
         print()
         print(f"Move {i}")
@@ -36,12 +41,14 @@ def play_against_agent(
             print("#  s =", s)
             if enable_mcts:
                 batched_env = replicate(env, 1)
-                policy_output = improve_policy_with_mcts(
+                rng_key, rng_key_1 = jax.random.split(rng_key)
+                policy_output = mcts_policy(
                     agent,
                     batched_env,
                     recurrent_fn,
-                    jax.random.PRNGKey(i),
-                    num_simulations_per_move,
+                    rng_key_1,
+                    num_simulations=num_simulations_per_move,
+                    temperature=0.2,
                 )
                 logits = jnp.log(policy_output.action_weights)
                 root_idx = policy_output.search_tree.ROOT_INDEX

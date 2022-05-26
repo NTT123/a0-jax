@@ -30,7 +30,7 @@ def main(
     game_class: str = "connect_two_game.Connect2Game",
     agent_class="mlp_policy.MlpPolicyValueNet",
     ckpt_filepath: str = "./agent.ckpt",
-    num_simulations: int = 1024,
+    num_simulations: int = 32,
 ):
     """Run a `muzero_policy` at the start position and plot the search tree."""
     batch_size = 1
@@ -58,7 +58,6 @@ def main(
             f"Discount: {discount:.2f}\n"
             f"Value: {tree.node_values[batch_index, node_i]:.2f}\n"
             f"Visits: {tree.node_visits[batch_index, node_i]}\n"
-            f"Terminated: {tree.node_terminated[batch_index, node_i]}\n"
         )
 
     def edge_to_str(node_i, a_i):

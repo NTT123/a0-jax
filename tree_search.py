@@ -2,6 +2,8 @@
 Monte Carlo tree search.
 """
 
+from functools import partial
+
 import chex
 import jax
 import jax.numpy as jnp
@@ -26,18 +28,24 @@ def recurrent_fn(params, rng_key: chex.Array, action: chex.Array, embedding):
     terminated = env.is_terminated()
     assert value.shape == terminated.shape
     value = jnp.where(terminated, 0.0, value)
+    assert discount.shape == terminated.shape
+    discount = jnp.where(terminated, 0.0, discount)
     recurrent_fn_output = mctx.RecurrentFnOutput(
         reward=reward,
         discount=discount,
         prior_logits=prior_logits,
         value=value,
-        terminated=terminated,
     )
     return recurrent_fn_output, env
 
 
 def improve_policy_with_mcts(
-    agent, env: E, rec_fn, rng_key: chex.Array, num_simulations: int
+    agent,
+    env: E,
+    rec_fn,
+    rng_key: chex.Array,
+    num_simulations: int,
+    temperature: float = 1.0,
 ):
     """Improve agent policy using MCTS.
 
@@ -47,15 +55,17 @@ def improve_policy_with_mcts(
     state = env.canonical_observation()
     _, (prior_logits, value) = batched_policy(agent, state)
     root = mctx.RootFnOutput(prior_logits=prior_logits, value=value, embedding=env)
-    policy_output = mctx.gumbel_muzero_policy(
+    policy_output = mctx.muzero_policy(
         params=agent,
         rng_key=rng_key,
         root=root,
         recurrent_fn=rec_fn,
         num_simulations=num_simulations,
-        max_num_considered_actions=env.num_actions(),
         invalid_actions=env.invalid_actions(),
-        qtransform=mctx.qtransform_by_parent_and_siblings,
-        gumbel_scale=1.0,
+        qtransform=partial(mctx.qtransform_by_min_max, min_value=-1.0, max_value=1.0),
+        pb_c_init=2.0,
+        dirichlet_fraction=0.25,
+        dirichlet_alpha=1.0,
+        temperature=temperature,
     )
     return policy_output
