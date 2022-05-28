@@ -42,8 +42,8 @@ def recurrent_fn(params, rng_key: chex.Array, action: chex.Array, embedding):
 def improve_policy_with_mcts(
     agent,
     env: E,
-    rec_fn,
     rng_key: chex.Array,
+    rec_fn,
     num_simulations: int,
     temperature: float = 1.0,
 ):

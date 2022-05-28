@@ -47,7 +47,7 @@ def main(
     game = replicate(game, batch_size)
     rng_key = jax.random.PRNGKey(42)
     policy_output = improve_policy_with_mcts(
-        agent, game, recurrent_fn, rng_key, num_simulations
+        agent, game, rng_key, recurrent_fn, num_simulations
     )
     tree = policy_output.search_tree
 

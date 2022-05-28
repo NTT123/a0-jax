@@ -27,7 +27,7 @@ def play_against_agent(
     rng_key = jax.random.PRNGKey(42)
     mcts_policy = jax.jit(
         improve_policy_with_mcts,
-        static_argnames=("temperature", "num_simulations"),
+        static_argnames=("temperature", "num_simulations", "rec_fn"),
     )
     for i in range(1000):
         print()
@@ -45,8 +45,8 @@ def play_against_agent(
                 policy_output = mcts_policy(
                     agent,
                     batched_env,
-                    recurrent_fn,
                     rng_key_1,
+                    rec_fn=recurrent_fn,
                     num_simulations=num_simulations_per_move,
                     temperature=0.2,
                 )

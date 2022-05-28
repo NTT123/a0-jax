@@ -79,8 +79,8 @@ def collect_batched_self_play_data(
         policy_output = improve_policy_with_mcts(
             agent,
             env,
-            recurrent_fn,
             rng_key,
+            recurrent_fn,
             num_simulations_per_move,
             temperature=jnp.where(step > 20, 0.3, 1.0),
         )
