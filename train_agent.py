@@ -19,6 +19,7 @@ import optax
 import pax
 
 from env import Enviroment
+from play import agent_vs_agent_multiple_games
 from tree_search import improve_policy_with_mcts, recurrent_fn
 from utils import batched_policy, env_step, import_class, replicate, reset_env
 
@@ -55,7 +56,10 @@ class MoveOutput:
     action_weights: chex.Array
 
 
-@partial(jax.jit, static_argnames=("batch_size", "num_simulations_per_move"))
+@partial(
+    jax.jit,
+    static_argnames=("batch_size", "num_simulations_per_move", "temperature_decay"),
+)
 def collect_batched_self_play_data(
     agent,
     env: Enviroment,
@@ -63,6 +67,7 @@ def collect_batched_self_play_data(
     *,
     batch_size: int,
     num_simulations_per_move: int,
+    temperature_decay: float,
 ):
     """Collect a batch of self-play data using mcts."""
 
@@ -76,13 +81,14 @@ def collect_batched_self_play_data(
         rng_key, rng_key_next = jax.random.split(rng_key, 2)
         state = env.canonical_observation()
         terminated = env.is_terminated()
+        temperature = jnp.power(temperature_decay, step)
         policy_output = improve_policy_with_mcts(
             agent,
             env,
             rng_key,
             recurrent_fn,
             num_simulations_per_move,
-            temperature=jnp.where(step > 20, 0.3, 1.0),
+            temperature=temperature,
         )
         env, reward = jax.vmap(env_step)(env, policy_output.action)
         return (env, rng_key_next, step + 1), MoveOutput(
@@ -112,6 +118,7 @@ def collect_self_play_data(
     batch_size: int,
     data_size: int,
     num_simulations_per_move: int,
+    temperature_decay: float,
 ):
     """Collect self-play data for training."""
     N = data_size // batch_size
@@ -126,6 +133,7 @@ def collect_self_play_data(
                 rng_key,
                 batch_size=batch_size,
                 num_simulations_per_move=num_simulations_per_move,
+                temperature_decay=temperature_decay,
             )
             data.append(jax.device_get(batch))
     data = jax.tree_map(lambda *xs: np.concatenate(xs), *data)
@@ -201,6 +209,7 @@ def train(
     ckpt_filename: str = "./agent.ckpt",
     random_seed: int = 42,
     weight_decay: float = 1e-4,
+    temperature_decay=0.9,
 ):
     """Train an agent by self-play."""
     env = import_class(game_class)()
@@ -224,12 +233,14 @@ def train(
             batch_size,
             num_self_plays_per_iteration,
             num_simulations_per_move,
+            temperature_decay,
         )
         buffer = prepare_training_data(data)
         shuffler.shuffle(buffer)
         buffer = jax.tree_map(lambda *xs: np.stack(xs), *buffer)
         N = buffer.state.shape[0]
         losses = []
+        old_agent = jax.tree_map(lambda x: jnp.copy(x), agent)
         agent = agent.train()
         with click.progressbar(
             range(0, N - batch_size, batch_size), label="  train agent"
@@ -243,6 +254,19 @@ def train(
         value_loss = sum(value_loss).item() / len(value_loss)
         policy_loss = sum(policy_loss).item() / len(policy_loss)
         print(f"  train losses:  value {value_loss:.3f}  policy {policy_loss:.3f}")
+        win_count1, draw_count1, loss_count1 = agent_vs_agent_multiple_games(
+            agent.eval(), old_agent, env
+        )
+        loss_count2, draw_count2, win_count2 = agent_vs_agent_multiple_games(
+            old_agent, agent.eval(), env
+        )
+        print(
+            "  play against previous version: {} win - {} draw - {} loss".format(
+                win_count1 + win_count2,
+                draw_count1 + draw_count2,
+                loss_count1 + loss_count2,
+            )
+        )
         # save agent's weights to disk
         with open(ckpt_filename, "wb") as f:
             pickle.dump(agent.state_dict(), f)

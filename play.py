@@ -3,8 +3,11 @@ Human vs AI play
 """
 
 import pickle
+import random
 import warnings
+from functools import partial
 
+import chex
 import jax
 import jax.numpy as jnp
 from fire import Fire
@@ -14,21 +17,122 @@ from tree_search import improve_policy_with_mcts, recurrent_fn
 from utils import env_step, import_class, replicate, reset_env
 
 
-def play_against_agent(
+def _apply_temperature(logits, temperature):
+    """Returns `logits / temperature`, supporting also temperature=0."""
+    # The max subtraction prevents +inf after dividing by a small temperature.
+    logits = logits - jnp.max(logits, keepdims=True, axis=-1)
+    tiny = jnp.finfo(logits.dtype).tiny
+    return logits / jnp.maximum(tiny, temperature)
+
+
+@partial(jax.jit, static_argnames=("temperature", "num_simulations", "enable_mcts"))
+def play_one_move(
+    agent,
+    env: Enviroment,
+    rng_key: chex.Array,
+    enable_mcts: bool = False,
+    num_simulations: int = 1024,
+    temperature=0.2,
+):
+    """Play a move using agent's policy"""
+    if enable_mcts:
+        batched_env = replicate(env, 1)
+        policy_output = improve_policy_with_mcts(
+            agent,
+            batched_env,
+            rng_key,
+            rec_fn=recurrent_fn,
+            num_simulations=num_simulations,
+            temperature=temperature,
+        )
+        action = policy_output.action
+        action_weights = jnp.log(policy_output.action_weights)
+        root_idx = policy_output.search_tree.ROOT_INDEX
+        value = policy_output.search_tree.node_values[0, root_idx]
+    else:
+        action_logits, value = agent(env.canonical_observation())
+        action_logits = _apply_temperature(action_logits, temperature)
+        action_weights = jax.nn.softmax(action_logits, axis=-1)
+        action = jax.random.categorical(rng_key, action_logits)
+
+    return action, action_weights, value
+
+
+def agent_vs_agent(
+    agent1,
+    agent2,
+    env: Enviroment,
+    rng_key: chex.Array,
+    enable_mcts: bool = False,
+    num_simulations_per_move: int = 1024,
+    temperature: float = 0.2,
+):
+    """A game of agent1 vs agent2."""
+    env = reset_env(env)
+    agents = [agent1, agent2]
+    turn = 1
+    for i in range(1000):
+        agent = agents[i % 2]
+        rng_key_1, rng_key = jax.random.split(rng_key)
+        action, _, _ = play_one_move(
+            agent,
+            env,
+            rng_key_1,
+            enable_mcts=enable_mcts,
+            num_simulations=num_simulations_per_move,
+            temperature=temperature,
+        )
+        env, reward = env_step(env, action.item())
+        if env.is_terminated().item():
+            # return reward from agent1 point of view
+            return turn * reward
+        turn = -turn
+
+
+def agent_vs_agent_multiple_games(
+    agent1,
+    agent2,
+    env,
+    enable_mcts: bool = False,
+    num_simulations_per_move: int = 1024,
+    temperature: float = 0.2,
+    num_games: int = 128,
+):
+    win_count, draw_count, loss_count = 0, 0, 0
+    rng_keys = jax.random.split(
+        jax.random.PRNGKey(random.randint(0, 9999999)), num_games
+    )
+    for i in range(num_games):
+        result = agent_vs_agent(
+            agent1,
+            agent2,
+            env,
+            rng_keys[i],
+            enable_mcts,
+            num_simulations_per_move,
+            temperature,
+        )
+        if result == 1:
+            win_count += 1
+        elif result == -1:
+            loss_count += 1
+        else:
+            draw_count += 1
+    return win_count, draw_count, loss_count
+
+
+def human_vs_agent(
     agent,
     env: Enviroment,
     human_first: bool = True,
     enable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
+    temperature: float = 0.2,
 ):
     """A game of human vs agent."""
     env = reset_env(env)
     agent_turn = 1 if human_first else 0
-    rng_key = jax.random.PRNGKey(42)
-    mcts_policy = jax.jit(
-        improve_policy_with_mcts,
-        static_argnames=("temperature", "num_simulations", "rec_fn"),
-    )
+    rng_key = jax.random.PRNGKey(random.randint(0, 999999))
     for i in range(1000):
         print()
         print(f"Move {i}")
@@ -39,28 +143,18 @@ def play_against_agent(
             print()
             s = env.canonical_observation()
             print("#  s =", s)
-            if enable_mcts:
-                batched_env = replicate(env, 1)
-                rng_key, rng_key_1 = jax.random.split(rng_key)
-                policy_output = mcts_policy(
-                    agent,
-                    batched_env,
-                    rng_key_1,
-                    rec_fn=recurrent_fn,
-                    num_simulations=num_simulations_per_move,
-                    temperature=0.2,
-                )
-                logits = jnp.log(policy_output.action_weights)
-                root_idx = policy_output.search_tree.ROOT_INDEX
-                value = policy_output.search_tree.node_values[0, root_idx]
-            else:
-                logits, value = agent(s)
-            # the network should be able to learn to avoid invalid actions
-            # logits = jnp.where(env.invalid_actions(), float("-inf"), logits)
-            print("#  A(s) =", logits)
+            rng_key_1, rng_key = jax.random.split(rng_key)
+            action, action_weights, value = play_one_move(
+                agent,
+                env,
+                rng_key_1,
+                enable_mcts=enable_mcts,
+                num_simulations=num_simulations_per_move,
+                temperature=temperature,
+            )
+            print("#  A(s) =", action_weights)
             print("#  V(s) =", value)
-            action = jnp.argmax(logits, axis=-1).item()
-            env, reward = env_step(env, action)
+            env, reward = env_step(env, action.item())
             print(f"#  Agent selected action {action}, got reward {reward}")
         else:
             action = int(input("> "))
@@ -82,7 +176,7 @@ def main(
     game_class: str = "connect_two_game.Connect2Game",
     agent_class="mlp_policy.MlpPolicyValueNet",
     ckpt_filename: str = "./agent.ckpt",
-    human_first: bool = True,
+    human_first: bool = False,
     enable_mcts: bool = False,
     num_simulations_per_move: bool = 128,
 ):
@@ -96,7 +190,7 @@ def main(
     with open(ckpt_filename, "rb") as f:
         agent = agent.load_state_dict(pickle.load(f))
     agent = agent.eval()
-    play_against_agent(
+    human_vs_agent(
         agent,
         env,
         human_first=human_first,

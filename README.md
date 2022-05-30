@@ -22,9 +22,10 @@ python train_agent.py
 python train_agent.py \
 --game_class="connect_four_game.Connect4Game" \
 --agent_class="resnet_policy_net.ResnetPolicyValueNet" \
---batch-size=64 \
---num_simulations_per_move=600 \
---num_self_plays_per_iteration=5000
+--batch-size=512 \
+--num_simulations_per_move=512 \
+--num_self_plays_per_iteration=2048 \
+--learning-rate=1e-4
 ```
 
 ## Plot the search tree
