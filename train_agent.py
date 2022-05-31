@@ -205,7 +205,7 @@ def train(
     num_iterations: int = 50,
     num_simulations_per_move: int = 16,
     num_self_plays_per_iteration: int = 1024,
-    learing_rate: float = 0.001,
+    learning_rate: float = 0.001,
     ckpt_filename: str = "./agent.ckpt",
     random_seed: int = 42,
     weight_decay: float = 1e-4,
@@ -220,7 +220,7 @@ def train(
     rng_key = jax.random.PRNGKey(random_seed)
     shuffler = random.Random(random_seed)
 
-    optim = opax.adamw(learing_rate, weight_decay=weight_decay).init(agent.parameters())
+    optim = opax.adamw(learning_rate, weight_decay=weight_decay).init(agent.parameters())
 
     for iteration in range(num_iterations):
         print(f"Iteration {iteration}")
