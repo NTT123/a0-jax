@@ -21,22 +21,25 @@ python train_agent.py
 ```sh
 python train_agent.py \
 --game_class="connect_four_game.Connect4Game" \
---agent_class="resnet_policy_net.ResnetPolicyValueNet" \
+--agent_class="resnet_policy.ResnetPolicyValueNet" \
 --batch-size=512 \
 --num_simulations_per_move=512 \
 --num_self_plays_per_iteration=2048 \
---learning-rate=1e-4
+--learning-rate=1e-4 \
+--temperature-decay=0.95
 ```
 
 #### Caro game
 
 ```sh
-python train_agent.py --game_class="caro_game.CaroGame"
---agent_class="resnet_policy_net.ResnetPolicyValueNet" \
---batch-size=512 \
+TF_CPP_MIN_LOG_LEVEL=2 \
+python train_agent.py --game_class="caro_game.CaroGame" \
+--agent_class="resnet_policy.ResnetPolicyValueNet" \
+--batch-size=128 \
 --num_simulations_per_move=512 \
 --num_self_plays_per_iteration=2048 \
---learning-rate=1e-4
+--learning-rate=1e-4 \
+--temperature-decay=0.95
 ```
 
 ## Plot the search tree

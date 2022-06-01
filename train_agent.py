@@ -4,6 +4,7 @@ AlphaZero training script.
 Train agent by self-play only.
 """
 
+import os
 import pickle
 import random
 from functools import partial
@@ -13,6 +14,7 @@ import click
 import fire
 import jax
 import jax.numpy as jnp
+import jax.tools.colab_tpu
 import numpy as np
 import opax
 import optax
@@ -56,15 +58,11 @@ class MoveOutput:
     action_weights: chex.Array
 
 
-@partial(
-    jax.jit,
-    static_argnames=("batch_size", "num_simulations_per_move", "temperature_decay"),
-)
+@partial(jax.pmap, in_axes=(None, None, 0), static_broadcasted_argnums=(3, 4, 5))
 def collect_batched_self_play_data(
     agent,
     env: Enviroment,
     rng_key: chex.Array,
-    *,
     batch_size: int,
     num_simulations_per_move: int,
     temperature_decay: float,
@@ -122,20 +120,25 @@ def collect_self_play_data(
 ):
     """Collect self-play data for training."""
     N = data_size // batch_size
-    rng_keys = jax.random.split(rng_key, N)
+    devices = jax.local_devices()
+    num_devices = len(devices)
+    rng_keys = jax.random.split(rng_key, N * num_devices)
+    rng_keys = jnp.stack(rng_keys).reshape((N, num_devices, -1))
     data = []
 
-    with click.progressbar(rng_keys, label="  self play  ") as bar:
-        for rng_key in bar:
+    with click.progressbar(range(N), label="  self play  ") as bar:
+        for i in bar:
             batch = collect_batched_self_play_data(
                 agent,
                 env,
-                rng_key,
-                batch_size=batch_size,
-                num_simulations_per_move=num_simulations_per_move,
-                temperature_decay=temperature_decay,
+                rng_keys[i],
+                batch_size // num_devices,
+                num_simulations_per_move,
+                temperature_decay,
             )
-            data.append(jax.device_get(batch))
+            batch = jax.device_get(batch)
+            batch = jax.tree_map(lambda x: x.reshape((-1, *x.shape[2:])), batch)
+            data.append(batch)
     data = jax.tree_map(lambda *xs: np.concatenate(xs), *data)
     return data
 
@@ -276,4 +279,8 @@ def train(
 
 
 if __name__ == "__main__":
+    if "COLAB_TPU_ADDR" in os.environ:
+        jax.tools.colab_tpu.setup_tpu()
+    print("Cores:", jax.local_devices())
+
     fire.Fire(train)
