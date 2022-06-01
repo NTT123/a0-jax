@@ -28,6 +28,17 @@ python train_agent.py \
 --learning-rate=1e-4
 ```
 
+#### Caro game
+
+```sh
+python train_agent.py --game_class="caro_game.CaroGame"
+--agent_class="resnet_policy_net.ResnetPolicyValueNet" \
+--batch-size=512 \
+--num_simulations_per_move=512 \
+--num_self_plays_per_iteration=2048 \
+--learning-rate=1e-4
+```
+
 ## Plot the search tree
 
 ```sh

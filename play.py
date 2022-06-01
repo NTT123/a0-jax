@@ -178,7 +178,7 @@ def main(
     ckpt_filename: str = "./agent.ckpt",
     human_first: bool = False,
     enable_mcts: bool = False,
-    num_simulations_per_move: bool = 128,
+    num_simulations_per_move: int = 128,
 ):
     """Load agent's weight from disk and start the game."""
     warnings.filterwarnings("ignore")

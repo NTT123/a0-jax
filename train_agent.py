@@ -220,7 +220,9 @@ def train(
     rng_key = jax.random.PRNGKey(random_seed)
     shuffler = random.Random(random_seed)
 
-    optim = opax.adamw(learning_rate, weight_decay=weight_decay).init(agent.parameters())
+    optim = opax.adamw(learning_rate, weight_decay=weight_decay).init(
+        agent.parameters()
+    )
 
     for iteration in range(num_iterations):
         print(f"Iteration {iteration}")
