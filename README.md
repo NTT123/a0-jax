@@ -37,7 +37,7 @@ python train_agent.py --game_class="caro_game.CaroGame" \
 --agent_class="resnet_policy.ResnetPolicyValueNet" \
 --batch-size=128 \
 --num_simulations_per_move=512 \
---num_self_plays_per_iteration=2048 \
+--num_self_plays_per_iteration=4096 \
 --learning-rate=1e-4 \
 --temperature-decay=0.95
 ```

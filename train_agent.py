@@ -220,6 +220,10 @@ def train(
         input_dims=env.observation().shape,
         num_actions=env.num_actions(),
     )
+    if os.path.isfile(ckpt_filename):
+        print("Loading weights at", ckpt_filename)
+        with open(ckpt_filename, "rb") as f:
+            agent = agent.load_state_dict(pickle.load(f))
     rng_key = jax.random.PRNGKey(random_seed)
     shuffler = random.Random(random_seed)
 
