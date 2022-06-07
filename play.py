@@ -51,8 +51,8 @@ def play_one_move(
         value = policy_output.search_tree.node_values[0, root_idx]
     else:
         action_logits, value = agent(env.canonical_observation())
-        action_logits = _apply_temperature(action_logits, temperature)
-        action_weights = jax.nn.softmax(action_logits, axis=-1)
+        action_logits_ = _apply_temperature(action_logits, temperature)
+        action_weights = jax.nn.softmax(action_logits_, axis=-1)
         action = jax.random.categorical(rng_key, action_logits)
 
     return action, action_weights, value
@@ -188,7 +188,7 @@ def main(
         num_actions=env.num_actions(),
     )
     with open(ckpt_filename, "rb") as f:
-        agent = agent.load_state_dict(pickle.load(f))
+        agent = agent.load_state_dict(pickle.load(f)["agent"])
     agent = agent.eval()
     human_vs_agent(
         agent,

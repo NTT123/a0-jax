@@ -42,7 +42,7 @@ def main(
     if os.path.isfile(ckpt_filepath):
         print("Loading checkpoint at", ckpt_filepath)
         with open(ckpt_filepath, "rb") as f:
-            agent = agent.load_state_dict(pickle.load(f))
+            agent = agent.load_state_dict(pickle.load(f)["agent"])
     agent = agent.eval()
     game = replicate(game, batch_size)
     rng_key = jax.random.PRNGKey(42)

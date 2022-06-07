@@ -220,18 +220,23 @@ def train(
         input_dims=env.observation().shape,
         num_actions=env.num_actions(),
     )
+    optim = opax.adamw(
+        learning_rate,
+        weight_decay=weight_decay,
+    ).init(agent.parameters())
     if os.path.isfile(ckpt_filename):
         print("Loading weights at", ckpt_filename)
         with open(ckpt_filename, "rb") as f:
-            agent = agent.load_state_dict(pickle.load(f))
+            dic = pickle.load(f)
+            agent = agent.load_state_dict(dic["agent"])
+            optim = optim.load_state_dict(dic["optim"])
+            start_iter = dic["iter"] + 1
+    else:
+        start_iter = 0
     rng_key = jax.random.PRNGKey(random_seed)
     shuffler = random.Random(random_seed)
 
-    optim = opax.adamw(learning_rate, weight_decay=weight_decay).init(
-        agent.parameters()
-    )
-
-    for iteration in range(num_iterations):
+    for iteration in range(start_iter, num_iterations):
         print(f"Iteration {iteration}")
         rng_key_1, rng_key = jax.random.split(rng_key, 2)
         agent = agent.eval()
@@ -278,7 +283,12 @@ def train(
         )
         # save agent's weights to disk
         with open(ckpt_filename, "wb") as f:
-            pickle.dump(agent.state_dict(), f)
+            dic = {
+                "agent": agent.state_dict(),
+                "optim": optim.state_dict(),
+                "iter": iteration,
+            }
+            pickle.dump(dic, f)
     print("Done!")
 
 
