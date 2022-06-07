@@ -1,4 +1,4 @@
-# a0-jax (work-in-progress)
+# a0-jax
 AlphaZero in JAX using PAX library
 
 ```sh
@@ -19,6 +19,7 @@ python train_agent.py
 #### Connect-Four game
 
 ```sh
+TF_CPP_MIN_LOG_LEVEL=2 \
 python train_agent.py \
 --game_class="connect_four_game.Connect4Game" \
 --agent_class="resnet_policy.ResnetPolicyValueNet" \
