@@ -8,6 +8,7 @@ import os
 import pickle
 import random
 from functools import partial
+from typing import Deque
 
 import chex
 import click
@@ -213,6 +214,7 @@ def train(
     random_seed: int = 42,
     weight_decay: float = 1e-4,
     temperature_decay=0.9,
+    buffer_size: int = 20_000,
 ):
     """Train an agent by self-play."""
     env = import_class(game_class)()
@@ -235,6 +237,7 @@ def train(
         start_iter = 0
     rng_key = jax.random.PRNGKey(random_seed)
     shuffler = random.Random(random_seed)
+    buffer = Deque(maxlen=buffer_size)
 
     for iteration in range(start_iter, num_iterations):
         print(f"Iteration {iteration}")
@@ -249,10 +252,12 @@ def train(
             num_simulations_per_move,
             temperature_decay,
         )
-        buffer = prepare_training_data(data)
-        shuffler.shuffle(buffer)
-        buffer = jax.tree_map(lambda *xs: np.stack(xs), *buffer)
-        N = buffer.state.shape[0]
+        data = prepare_training_data(data)
+        buffer.extend(data)
+        data = list(buffer)
+        shuffler.shuffle(data)
+        data = jax.tree_map(lambda *xs: np.stack(xs), *data)
+        N = data.state.shape[0]
         losses = []
         old_agent = jax.tree_map(lambda x: jnp.copy(x), agent)
         agent = agent.train()
@@ -260,7 +265,7 @@ def train(
             range(0, N - batch_size, batch_size), label="  train agent"
         ) as bar:
             for i in bar:
-                batch = jax.tree_map(lambda x: x[i : (i + batch_size)], buffer)
+                batch = jax.tree_map(lambda x: x[i : (i + batch_size)], data)
                 agent, optim, loss = train_step(agent, optim, batch)
                 losses.append(loss)
 

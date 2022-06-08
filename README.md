@@ -23,24 +23,12 @@ TF_CPP_MIN_LOG_LEVEL=2 \
 python train_agent.py \
 --game_class="connect_four_game.Connect4Game" \
 --agent_class="resnet_policy.ResnetPolicyValueNet" \
---batch-size=512 \
---num_simulations_per_move=512 \
---num_self_plays_per_iteration=2048 \
+--batch-size=4096 \
+--num_simulations_per_move=32 \
+--num_self_plays_per_iteration=16384 \
 --learning-rate=1e-4 \
---temperature-decay=0.95
-```
-
-#### Caro game
-
-```sh
-TF_CPP_MIN_LOG_LEVEL=2 \
-python train_agent.py --game_class="caro_game.CaroGame" \
---agent_class="resnet_policy.ResnetPolicyValueNet" \
---batch-size=128 \
---num_simulations_per_move=512 \
---num_self_plays_per_iteration=4096 \
---learning-rate=1e-4 \
---temperature-decay=0.95
+--buffer-size=2000000 \
+--num_iterations=1000
 ```
 
 ## Plot the search tree
