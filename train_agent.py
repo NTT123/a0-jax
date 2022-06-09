@@ -256,8 +256,7 @@ def train(
         buffer.extend(data)
         data = list(buffer)
         shuffler.shuffle(data)
-        data = jax.tree_map(lambda *xs: np.stack(xs), *data)
-        N = data.state.shape[0]
+        N = len(data)
         losses = []
         old_agent = jax.tree_map(lambda x: jnp.copy(x), agent)
         agent = agent.train()
@@ -265,7 +264,8 @@ def train(
             range(0, N - batch_size, batch_size), label="  train agent"
         ) as bar:
             for i in bar:
-                batch = jax.tree_map(lambda x: x[i : (i + batch_size)], data)
+                batch = data[i : (i + batch_size)]
+                batch = jax.tree_map(lambda *xs: np.stack(xs), *batch)
                 agent, optim, loss = train_step(agent, optim, batch)
                 losses.append(loss)
 
