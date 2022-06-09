@@ -61,7 +61,6 @@ class ResnetPolicyValueNet(pax.Module):
             pax.BatchNorm2D(dim, True, True),
             jax.nn.relu,
             pax.Conv2D(dim, 1, kernel_shape=1, padding="VALID"),
-            pax.BatchNorm2D(1, True, True),
             jnp.tanh,
         )
 
