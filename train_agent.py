@@ -241,7 +241,7 @@ def train(
 
     for iteration in range(start_iter, num_iterations):
         print(f"Iteration {iteration}")
-        rng_key_1, rng_key = jax.random.split(rng_key, 2)
+        rng_key_1, rng_key_2, rng_key_3, rng_key = jax.random.split(rng_key, 4)
         agent = agent.eval()
         data = collect_self_play_data(
             agent,
@@ -274,10 +274,10 @@ def train(
         policy_loss = sum(policy_loss).item() / len(policy_loss)
         print(f"  train losses:  value {value_loss:.3f}  policy {policy_loss:.3f}")
         win_count1, draw_count1, loss_count1 = agent_vs_agent_multiple_games(
-            agent.eval(), old_agent, env
+            agent.eval(), old_agent, env, rng_key_2
         )
         loss_count2, draw_count2, win_count2 = agent_vs_agent_multiple_games(
-            old_agent, agent.eval(), env
+            old_agent, agent.eval(), env, rng_key_3
         )
         print(
             "  play against previous version: {} win - {} draw - {} loss".format(

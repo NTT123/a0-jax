@@ -68,56 +68,57 @@ def agent_vs_agent(
     temperature: float = 0.2,
 ):
     """A game of agent1 vs agent2."""
-    env = reset_env(env)
-    agents = [agent1, agent2]
-    turn = 1
-    for i in range(1000):
-        agent = agents[i % 2]
+
+    def cond_fn(state):
+        env, *_ = state
+        return env.is_terminated() == False
+
+    def loop_fn(state):
+        env, a1, a2, _, rng_key, turn = state
         rng_key_1, rng_key = jax.random.split(rng_key)
         action, _, _ = play_one_move(
-            agent,
+            a1,
             env,
             rng_key_1,
             enable_mcts=enable_mcts,
             num_simulations=num_simulations_per_move,
             temperature=temperature,
         )
-        env, reward = env_step(env, action.item())
-        if env.is_terminated().item():
-            # return reward from agent1 point of view
-            return turn * reward
-        turn = -turn
+        env, reward = env_step(env, action)
+        state = (env, a2, a1, turn * reward, rng_key, -turn)
+        return state
+
+    state = (reset_env(env), agent1, agent2, jnp.array(0), rng_key, jnp.array(1))
+    state = jax.lax.while_loop(cond_fn, loop_fn, state)
+    return state[3]
 
 
+@partial(jax.jit, static_argnums=(4, 5, 6, 7))
 def agent_vs_agent_multiple_games(
     agent1,
     agent2,
     env,
+    rng_key,
     enable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
     temperature: float = 0.2,
     num_games: int = 128,
 ):
-    win_count, draw_count, loss_count = 0, 0, 0
-    rng_keys = jax.random.split(
-        jax.random.PRNGKey(random.randint(0, 9999999)), num_games
+    """Fast agent vs agent evaluation."""
+    rng_keys = jax.random.split(rng_key, num_games)
+    rng_keys = jnp.stack(rng_keys, axis=0)
+    avsa = partial(
+        agent_vs_agent,
+        enable_mcts=enable_mcts,
+        temperature=temperature,
+        num_simulations_per_move=num_simulations_per_move,
     )
-    for i in range(num_games):
-        result = agent_vs_agent(
-            agent1,
-            agent2,
-            env,
-            rng_keys[i],
-            enable_mcts,
-            num_simulations_per_move,
-            temperature,
-        )
-        if result == 1:
-            win_count += 1
-        elif result == -1:
-            loss_count += 1
-        else:
-            draw_count += 1
+    batched_avsa = jax.vmap(avsa, in_axes=(None, None, 0, 0))
+    envs = replicate(env, num_games)
+    results = batched_avsa(agent1, agent2, envs, rng_keys)
+    win_count = jnp.sum(results == 1)
+    draw_count = jnp.sum(results == 0)
+    loss_count = jnp.sum(results == -1)
     return win_count, draw_count, loss_count
 
 
