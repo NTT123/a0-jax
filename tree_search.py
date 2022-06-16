@@ -2,8 +2,6 @@
 Monte Carlo tree search.
 """
 
-from functools import partial
-
 import chex
 import jax
 import jax.numpy as jnp
@@ -62,7 +60,7 @@ def improve_policy_with_mcts(
         recurrent_fn=rec_fn,
         num_simulations=num_simulations,
         invalid_actions=env.invalid_actions(),
-        qtransform=partial(mctx.qtransform_by_min_max, min_value=-1.0, max_value=1.0),
+        qtransform=mctx.qtransform_completed_by_mix_value,
         gumbel_scale=1.0,
     )
     return policy_output
