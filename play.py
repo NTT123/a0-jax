@@ -155,11 +155,11 @@ def human_vs_agent(
             )
             print("#  A(s) =", action_weights)
             print("#  V(s) =", value)
-            env, reward = env_step(env, action.item())
+            env, reward = env_step(env, action)
             print(f"#  Agent selected action {action}, got reward {reward}")
         else:
             action = int(input("> "))
-            env, reward = env_step(env, action)
+            env, reward = env_step(env, jnp.array(action, dtype=jnp.int32))
             print(f"#  Human selected action {action}, got reward {reward}")
         if env.is_terminated().item():
             break
