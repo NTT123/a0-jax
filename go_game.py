@@ -13,6 +13,7 @@ import pax
 
 from dsu import DSU
 from env import Enviroment
+from utils import select_tree
 
 
 class GoBoard(Enviroment):
@@ -24,9 +25,10 @@ class GoBoard(Enviroment):
     board_size: int  # size of the board
     turn: chex.Array  # who is playing (1: black, -1: white)
 
-    def __init__(self, board_size: int = 9):
+    def __init__(self, board_size: int = 5, komi=0.5):
         super().__init__()
         self.board_size = board_size
+        self.komi = komi
         self.board = jnp.zeros((board_size, board_size), dtype=jnp.int32)
         self.prev_pass_move = jnp.array(False, dtype=jnp.bool_)
         self.turn = jnp.array(1, dtype=jnp.int32)
@@ -61,7 +63,7 @@ class GoBoard(Enviroment):
 
         def update_dsu(s, loc):
             update = pax.pure(lambda s: (s, s.union_sets(action, loc))[0])
-            return jmp.select_tree(board[action] == board[loc], update(s), s)
+            return select_tree(board[action] == board[loc], update(s), s)
 
         def board_clip(x):
             return jnp.clip(x, a_min=0, a_max=self.board_size - 1)
@@ -100,10 +102,10 @@ class GoBoard(Enviroment):
             return jnp.where(alive, board, cleared_board)
 
         opp = -board[action]
-        board = jmp.select_tree(board[l1] == opp, remove_stones(board, l1), board)
-        board = jmp.select_tree(board[l2] == opp, remove_stones(board, l2), board)
-        board = jmp.select_tree(board[l3] == opp, remove_stones(board, l3), board)
-        board = jmp.select_tree(board[l4] == opp, remove_stones(board, l4), board)
+        board = select_tree(board[l1] == opp, remove_stones(board, l1), board)
+        board = select_tree(board[l2] == opp, remove_stones(board, l2), board)
+        board = select_tree(board[l3] == opp, remove_stones(board, l3), board)
+        board = select_tree(board[l4] == opp, remove_stones(board, l4), board)
 
         # self-capture is not allowed
         board = remove_stones(board, action)
@@ -119,7 +121,7 @@ class GoBoard(Enviroment):
         is_invalid_action = jnp.logical_or(is_invalid_action, repeat_position)
 
         # reset board and dsu for a pass move
-        board, dsu = jmp.select_tree(is_pass_move, (self.board, self.dsu), (board, dsu))
+        board, dsu = select_tree(is_pass_move, (self.board, self.dsu), (board, dsu))
         # a pass move is always a valid action
         is_invalid_action = jnp.where(is_pass_move, False, is_invalid_action)
 
@@ -130,26 +132,51 @@ class GoBoard(Enviroment):
         done = jnp.logical_or(done, two_passes)
 
         # update internal states
-        self.turn = -self.turn
+        game_score = self.final_score(board, self.turn)
+        self.turn = jnp.where(done, self.turn, -self.turn)
         self.done = done
         self.board = board
         self.prev_pass_move = is_pass_move
         self.dsu = dsu
         self.is_invalid_action = is_invalid_action
+        reward = jnp.array(0.0)
+        reward = jnp.where(done, jnp.where(game_score > 0, 1.0, -1.0), reward)
+        reward = jnp.where(is_invalid_action, -1.0, reward)
+        return self, reward
 
-        return self, jnp.array(0.)
+    def final_score(self, board, turn):
+        """Compute final score of the game."""
+        my_score = jnp.sum(board == turn, axis=(-1, -2))
+        my_score = my_score + self.count_eyes(board, turn)
+        my_score = my_score - self.turn * self.komi
+        opp_score = jnp.sum(board == -turn, axis=(-1, -2))
+        opp_score = opp_score + self.count_eyes(board, -turn)
+        return my_score - opp_score
+
+    def count_eyes(self, board, turn):
+        """Count number of eyes for a player."""
+        board = board.reshape((self.board_size, self.board_size))
+        padded_board = jnp.pad(board == turn, ((1, 1), (1, 1)), constant_values=True)
+        x1 = padded_board[:-2, 1:-1]
+        x2 = padded_board[2:, 1:-1]
+        x3 = padded_board[1:-1, :-2]
+        x4 = padded_board[1:-1, 2:]
+        x12 = jnp.logical_and(x1, x2)
+        x34 = jnp.logical_and(x3, x4)
+        x = jnp.logical_and(x12, x34)
+        return jnp.sum(x)
 
     def num_actions(self):
         return self.board_size**2 + 1
-    
+
     def max_num_steps(self):
-        return self.board_size**2
-    
+        return (self.board_size**2) * 2
+
     def observation(self):
         return self.board
 
     def canonical_observation(self):
-        return self.board * self.turn[..., None, None]
+        return self.board * self.turn
 
     def is_terminated(self) -> chex.Array:
         return self.done
@@ -157,7 +184,7 @@ class GoBoard(Enviroment):
     def invalid_actions(self):
         """Return invalid actions."""
         # overriding opponent's stones are invalid actions.
-        actions = self.board == -self.turn[..., None, None]
+        actions = self.board == -self.turn
         actions = actions.reshape(actions.shape[:-2] + (-1,))
         # append "pass" action at the end
         pad = [(0, 0) for _ in range(len(actions.shape))]
