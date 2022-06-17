@@ -126,7 +126,7 @@ class CaroGame(Enviroment):
         return jnp.reshape(board, board.shape[:-1] + (self.num_rows, self.num_cols))
 
     def canonical_observation(self) -> chex.Array:
-        return self.observation() * self.who_play[..., None, None]
+        return self.observation() * self.who_play
 
     def is_terminated(self):
         return self.terminated

@@ -78,7 +78,7 @@ def collect_batched_self_play_data(
         env, rng_key, step = prev
         del inputs
         rng_key, rng_key_next = jax.random.split(rng_key, 2)
-        state = env.canonical_observation()
+        state = jax.vmap(lambda e: e.canonical_observation())(env)
         terminated = env.is_terminated()
         temperature = jnp.power(temperature_decay, step)
         policy_output = improve_policy_with_mcts(

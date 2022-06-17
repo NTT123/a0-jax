@@ -131,7 +131,7 @@ class Connect4Game(Enviroment):
         return self.board
 
     def canonical_observation(self) -> chex.Array:
-        return self.board * self.who_play[..., None, None]
+        return self.board * self.who_play
 
     def is_terminated(self):
         return self.terminated
