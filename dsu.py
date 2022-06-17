@@ -6,7 +6,7 @@ Reference: https://cp-algorithms.com/data_structures/disjoint_set_union.html
 import jax
 import jax.numpy as jnp
 import pax
-import jmp
+from utils import select_tree
 
 
 class DSU(pax.Module):
@@ -68,13 +68,13 @@ class DSU(pax.Module):
         b = self.find_set_pure(b)
 
         def if_true(x, y, parent, size):
-            x, y = jmp.select_tree(size[x] < size[y], (y, x), (x, y))
+            x, y = select_tree(size[x] < size[y], (y, x), (x, y))
             parent = parent.at[y].set(x)
             size = size.at[x].add(size[y])
             return parent, size
 
         parent, size = if_true(a, b, self.parent, self.size)
-        self.parent, self.size = jmp.select_tree(
+        self.parent, self.size = select_tree(
             a != b, (parent, size), (self.parent, self.size)
         )
 
