@@ -45,8 +45,8 @@ def play_one_move(
             num_simulations=num_simulations,
             temperature=temperature,
         )
-        action = policy_output.action
-        action_weights = jnp.log(policy_output.action_weights)
+        action = policy_output.action[0]
+        action_weights = jnp.log(policy_output.action_weights[0])
         root_idx = policy_output.search_tree.ROOT_INDEX
         value = policy_output.search_tree.node_values[0, root_idx]
     else:
