@@ -213,7 +213,7 @@ def train(
     ckpt_filename: str = "./agent.ckpt",
     random_seed: int = 42,
     weight_decay: float = 1e-4,
-    start_temperature: float = 10.0,
+    start_temperature: float = 2.0,
     end_temperature: float = 0.1,
     temperature_decay=0.9,
     buffer_size: int = 20_000,
@@ -246,10 +246,10 @@ def train(
     rng_key = jax.random.PRNGKey(random_seed)
     shuffler = random.Random(random_seed)
     buffer = Deque(maxlen=buffer_size)
-    temperature = jnp.array(start_temperature, dtype=jnp.float32)
+    start_temperature = jnp.array(start_temperature, dtype=jnp.float32)
 
     for iteration in range(start_iter, num_iterations):
-        temperature = temperature * temperature_decay
+        temperature = start_temperature * jnp.power(temperature_decay, iteration)
         temperature = jnp.clip(temperature, a_min=end_temperature)
         print(f"Iteration {iteration}")
         rng_key_1, rng_key_2, rng_key_3, rng_key = jax.random.split(rng_key, 4)
