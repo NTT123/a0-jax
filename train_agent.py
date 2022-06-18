@@ -252,6 +252,20 @@ def train(
     devices = jax.local_devices()
     num_devices = jax.local_device_count()
 
+    def batched_data_loader(data):
+        while True:
+            shuffler.shuffle(data)
+            for i in range(0, len(data) - batch_size, batch_size):
+                batch = data[i : (i + batch_size)]
+
+                def stack_and_reshape(*xs):
+                    x = np.stack(xs)
+                    x = np.reshape(x, (num_devices, -1) + x.shape[1:])
+                    return x
+
+                batch = jax.tree_map(stack_and_reshape, *batch)
+                yield batch
+
     for iteration in range(start_iter, num_iterations):
         temperature = start_temperature * jnp.power(temperature_decay, iteration)
         temperature = jnp.clip(temperature, a_min=end_temperature)
@@ -271,33 +285,21 @@ def train(
         buffer.extend(data)
         data = list(buffer)
         old_agent = jax.tree_map(lambda x: jnp.copy(x), agent)
-        agent, losses, count = agent.train(), [], 0
+        agent, losses = agent.train(), []
         agent, optim = jax.device_put_replicated((agent, optim), devices)
-
+        N = len(data)
+        data_iter = batched_data_loader(data)
         with click.progressbar(
             length=num_updates_per_iteration, label="  train agent"
-        ) as bar:
-            while count < num_updates_per_iteration:
-                shuffler.shuffle(data)
-                N = len(data)
-                for i in range(0, N - batch_size, batch_size):
-                    batch = data[i : (i + batch_size)]
-
-                    def stack_and_reshape(*xs):
-                        x = jnp.stack(xs)
-                        return jnp.reshape(x, (num_devices, -1) + x.shape[1:])
-
-                    batch = jax.tree_map(stack_and_reshape, *batch)
-                    agent, optim, loss = train_step(agent, optim, batch)
-                    losses.append(loss)
-                    count = count + 1
-                    bar.update(1)
-                    if count >= num_updates_per_iteration:
-                        break
+        ) as progressbar:
+            for _ in progressbar:
+                batch = next(data_iter)
+                agent, optim, loss = train_step(agent, optim, batch)
+                losses.append(loss)
 
         value_loss, policy_loss = zip(*losses)
-        value_loss = jnp.mean(sum(value_loss)).item() / len(value_loss)
-        policy_loss = jnp.mean(sum(policy_loss)).item() / len(policy_loss)
+        value_loss = np.mean(sum(jax.device_get(value_loss))) / len(value_loss)
+        policy_loss = np.mean(sum(jax.device_get(policy_loss))) / len(policy_loss)
         agent, optim = jax.tree_map(lambda x: x[0], (agent, optim))
         print(
             f"  buffer size {N}  temperature {temperature:.3f}  value loss {value_loss:.3f}  policy loss {policy_loss:.3f}"
