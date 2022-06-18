@@ -24,6 +24,9 @@ class GoBoard(Enviroment):
     """
 
     board_size: int  # size of the board
+    num_recent_positions: int  # number of recent position will be kept
+    komi: float  # added score to white player
+    board: chex.Array  # the current position
     recent_boards: Tuple[chex.Array]  # a list of recent positions
     prev_pass_move: chex.Array  # if the previous move is a "pass" move
     turn: chex.Array  # who is playing (1: black, -1: white)
@@ -31,7 +34,9 @@ class GoBoard(Enviroment):
     done: chex.Array  # the game ended
     count: chex.Array  # number of move played
 
-    def __init__(self, board_size: int = 5, komi=0.5, num_recent_positions: int = 16):
+    def __init__(
+        self, board_size: int = 5, komi: float = 0.5, num_recent_positions: int = 16
+    ):
         super().__init__()
         self.board_size = board_size
         self.num_recent_positions = num_recent_positions
@@ -40,9 +45,7 @@ class GoBoard(Enviroment):
 
     def reset(self):
         self.board = jnp.zeros((self.board_size, self.board_size), dtype=jnp.int32)
-        self.recent_boards = tuple(
-            jnp.copy(self.board) for _ in range(self.num_recent_positions)
-        )
+        self.recent_boards = jnp.stack([self.board] * self.num_recent_positions)
         self.prev_pass_move = jnp.array(False, dtype=jnp.bool_)
         self.turn = jnp.array(1, dtype=jnp.int32)
         self.dsu = DSU(self.board_size**2)
@@ -121,9 +124,7 @@ class GoBoard(Enviroment):
 
         board = board.reshape(self.board.shape)
         recent_boards = self.recent_boards
-        same_board = jnp.array(False, dtype=jnp.bool_)
-        for prev_board in recent_boards:
-            same_board = jnp.logical_or(same_board, jnp.all(prev_board == board))
+        same_board = jnp.any(jnp.all(recent_boards == board[None], axis=(1, 2)))
         repeat_position = jnp.logical_and(same_board, jnp.logical_not(is_pass_move))
         is_invalid_action = jnp.logical_or(is_invalid_action, repeat_position)
 
@@ -148,7 +149,7 @@ class GoBoard(Enviroment):
         self.prev_pass_move = is_pass_move
         self.dsu = dsu
         self.count = count
-        self.recent_boards = recent_boards[1:] + (jnp.copy(board),)
+        self.recent_boards = jnp.concatenate((recent_boards[1:], board[None]))
 
         reward = jnp.array(0.0)
         reward = jnp.where(done, jnp.where(game_score > 0, 1.0, -1.0), reward)
@@ -184,7 +185,7 @@ class GoBoard(Enviroment):
         return (self.board_size**2) * 2
 
     def observation(self):
-        return jnp.stack(self.recent_boards, axis=-1)
+        return jnp.swapaxes(self.recent_boards, 0, -1).astype(jnp.int8)
 
     def canonical_observation(self):
         return self.observation() * self.turn
