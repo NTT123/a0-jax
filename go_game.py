@@ -238,6 +238,33 @@ def put_stone(env, action):
     return _env_step(env, action)
 
 
+class GoBoard5x5(GoBoard):
+    """Create a 5x5 board"""
+
+    def __init__(self, num_recent_positions: int = 16):
+        super().__init__(
+            board_size=5, komi=0.5, num_recent_positions=num_recent_positions
+        )
+
+
+class GoBoard7x7(GoBoard):
+    """Create a 7x7 board"""
+
+    def __init__(self, num_recent_positions: int = 16):
+        super().__init__(
+            board_size=7, komi=0.5, num_recent_positions=num_recent_positions
+        )
+
+
+class GoBoard9x9(GoBoard):
+    """Create a 9x9 board"""
+
+    def __init__(self, num_recent_positions: int = 16):
+        super().__init__(
+            board_size=9, komi=6.5, num_recent_positions=num_recent_positions
+        )
+
+
 if __name__ == "__main__":
     game = GoBoard(9)
     while game.done.item() is False:
