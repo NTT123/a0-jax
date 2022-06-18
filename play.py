@@ -71,11 +71,13 @@ def agent_vs_agent(
     """A game of agent1 vs agent2."""
 
     def cond_fn(state):
-        env, *_ = state
-        return env.is_terminated() == False
+        env, step = state[0], state[-1]
+        not_ended = env.is_terminated() == False
+        not_too_long = step <= env.max_num_steps()
+        return jnp.logical_and(not_ended, not_too_long)
 
     def loop_fn(state):
-        env, a1, a2, _, rng_key, turn = state
+        env, a1, a2, _, rng_key, turn, step = state
         rng_key_1, rng_key = jax.random.split(rng_key)
         action, _, _ = play_one_move(
             a1,
@@ -86,10 +88,18 @@ def agent_vs_agent(
             temperature=temperature,
         )
         env, reward = env_step(env, action)
-        state = (env, a2, a1, turn * reward, rng_key, -turn)
+        state = (env, a2, a1, turn * reward, rng_key, -turn, step + 1)
         return state
 
-    state = (reset_env(env), agent1, agent2, jnp.array(0), rng_key, jnp.array(1))
+    state = (
+        reset_env(env),
+        agent1,
+        agent2,
+        jnp.array(0),
+        rng_key,
+        jnp.array(1),
+        jnp.array(1),
+    )
     state = jax.lax.while_loop(cond_fn, loop_fn, state)
     return state[3]
 
