@@ -35,6 +35,7 @@ class GoBoard(Enviroment):
         self.dsu = DSU(board_size**2)
         self.done = jnp.array(False, dtype=jnp.bool_)
         self.is_invalid_action = jnp.array(False, dtype=jnp.bool_)
+        self.count = jnp.array(0, dtype=jnp.int32)
 
     def reset(self):
         self.board = jnp.zeros((self.board_size, self.board_size), dtype=jnp.int32)
@@ -43,6 +44,7 @@ class GoBoard(Enviroment):
         self.dsu = DSU(self.board_size**2)
         self.done = jnp.array(False, dtype=jnp.bool_)
         self.is_invalid_action = jnp.array(False, dtype=jnp.bool_)
+        self.count = jnp.array(0, dtype=jnp.int32)
 
     @pax.pure
     def step(self, action):
@@ -130,6 +132,8 @@ class GoBoard(Enviroment):
         done = jnp.logical_or(done, is_invalid_action)
         two_passes = jnp.logical_and(self.prev_pass_move, is_pass_move)
         done = jnp.logical_or(done, two_passes)
+        count = self.count + 1
+        done = jnp.logical_or(done, count >= self.max_num_steps())
 
         # update internal states
         game_score = self.final_score(board, self.turn)
@@ -138,6 +142,7 @@ class GoBoard(Enviroment):
         self.board = board
         self.prev_pass_move = is_pass_move
         self.dsu = dsu
+        self.count = count
         self.is_invalid_action = is_invalid_action
         reward = jnp.array(0.0)
         reward = jnp.where(done, jnp.where(game_score > 0, 1.0, -1.0), reward)
