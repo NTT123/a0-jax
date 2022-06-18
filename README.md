@@ -28,7 +28,9 @@ python train_agent.py \
 --num_self_plays_per_iteration=16384 \
 --learning-rate=1e-4 \
 --buffer-size=2000000 \
---num_iterations=1000
+--num_iterations=500 \
+--temperature-decay=0.99 \
+--num-updates-per-iteration=200
 ```
 
 A trained Connect-4 agent is running at https://huggingface.co/spaces/ntt123/Connect-4-Game. We use tensorflow.js to run the policy on the browser.

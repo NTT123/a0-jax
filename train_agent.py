@@ -59,14 +59,14 @@ class MoveOutput:
     action_weights: chex.Array
 
 
-@partial(jax.pmap, in_axes=(None, None, 0), static_broadcasted_argnums=(3, 4, 5))
+@partial(jax.pmap, in_axes=(None, None, 0, None), static_broadcasted_argnums=(4, 5))
 def collect_batched_self_play_data(
     agent,
     env: Enviroment,
     rng_key: chex.Array,
+    temperature: chex.Array,
     batch_size: int,
     num_simulations_per_move: int,
-    temperature_decay: float,
 ):
     """Collect a batch of self-play data using mcts."""
 
@@ -80,7 +80,6 @@ def collect_batched_self_play_data(
         rng_key, rng_key_next = jax.random.split(rng_key, 2)
         state = jax.vmap(lambda e: e.canonical_observation())(env)
         terminated = env.is_terminated()
-        temperature = jnp.power(temperature_decay, step)
         policy_output = improve_policy_with_mcts(
             agent,
             env,
@@ -114,10 +113,10 @@ def collect_self_play_data(
     agent,
     env,
     rng_key: chex.Array,
+    temperature: float,
     batch_size: int,
     data_size: int,
     num_simulations_per_move: int,
-    temperature_decay: float,
 ):
     """Collect self-play data for training."""
     N = data_size // batch_size
@@ -133,9 +132,9 @@ def collect_self_play_data(
                 agent,
                 env,
                 rng_keys[i],
+                temperature,
                 batch_size // num_devices,
                 num_simulations_per_move,
-                temperature_decay,
             )
             batch = jax.device_get(batch)
             batch = jax.tree_map(lambda x: x.reshape((-1, *x.shape[2:])), batch)
@@ -205,16 +204,20 @@ def train_step(net, optim, data: TrainingExample):
 def train(
     game_class="connect_two_game.Connect2Game",
     agent_class="mlp_policy.MlpPolicyValueNet",
-    batch_size: int = 32,
+    batch_size: int = 1024,
     num_iterations: int = 50,
     num_simulations_per_move: int = 16,
+    num_updates_per_iteration: int = 100,
     num_self_plays_per_iteration: int = 1024,
     learning_rate: float = 0.001,
     ckpt_filename: str = "./agent.ckpt",
     random_seed: int = 42,
     weight_decay: float = 1e-4,
+    start_temperature: float = 10.0,
+    end_temperature: float = 0.1,
     temperature_decay=0.9,
     buffer_size: int = 20_000,
+    lr_decay_steps: int = 100_000,
 ):
     """Train an agent by self-play."""
     env = import_class(game_class)()
@@ -222,8 +225,13 @@ def train(
         input_dims=env.observation().shape,
         num_actions=env.num_actions(),
     )
+
+    def lr_schedule(step):
+        e = jnp.floor(step * 1.0 / lr_decay_steps)
+        return learning_rate * jnp.exp2(-e)
+
     optim = opax.adamw(
-        learning_rate,
+        lr_schedule,
         weight_decay=weight_decay,
     ).init(agent.parameters())
     if os.path.isfile(ckpt_filename):
@@ -238,8 +246,11 @@ def train(
     rng_key = jax.random.PRNGKey(random_seed)
     shuffler = random.Random(random_seed)
     buffer = Deque(maxlen=buffer_size)
+    temperature = jnp.array(start_temperature, dtype=jnp.float32)
 
     for iteration in range(start_iter, num_iterations):
+        temperature = temperature * temperature_decay
+        temperature = jnp.clip(temperature, a_min=end_temperature)
         print(f"Iteration {iteration}")
         rng_key_1, rng_key_2, rng_key_3, rng_key = jax.random.split(rng_key, 4)
         agent = agent.eval()
@@ -247,32 +258,38 @@ def train(
             agent,
             env,
             rng_key_1,
+            temperature,
             batch_size,
             num_self_plays_per_iteration,
             num_simulations_per_move,
-            temperature_decay,
         )
         data = prepare_training_data(data)
         buffer.extend(data)
         data = list(buffer)
-        shuffler.shuffle(data)
-        N = len(data)
-        losses = []
         old_agent = jax.tree_map(lambda x: jnp.copy(x), agent)
-        agent = agent.train()
+        agent, losses, count = agent.train(), [], 0
         with click.progressbar(
-            range(0, N - batch_size, batch_size), label="  train agent"
+            length=num_updates_per_iteration, label="  train agent"
         ) as bar:
-            for i in bar:
-                batch = data[i : (i + batch_size)]
-                batch = jax.tree_map(lambda *xs: np.stack(xs), *batch)
-                agent, optim, loss = train_step(agent, optim, batch)
-                losses.append(loss)
+            while count < num_updates_per_iteration:
+                shuffler.shuffle(data)
+                N = len(data)
+                for i in range(0, N - batch_size, batch_size):
+                    batch = data[i : (i + batch_size)]
+                    batch = jax.tree_map(lambda *xs: np.stack(xs), *batch)
+                    agent, optim, loss = train_step(agent, optim, batch)
+                    losses.append(loss)
+                    count = count + 1
+                    bar.update(1)
+                    if count >= num_updates_per_iteration:
+                        break
 
         value_loss, policy_loss = zip(*losses)
         value_loss = sum(value_loss).item() / len(value_loss)
         policy_loss = sum(policy_loss).item() / len(policy_loss)
-        print(f"  train losses:  value {value_loss:.3f}  policy {policy_loss:.3f}")
+        print(
+            f"  buffer size {N}  temperature {temperature:.3f}  value loss {value_loss:.3f}  policy loss {policy_loss:.3f}"
+        )
         win_count1, draw_count1, loss_count1 = agent_vs_agent_multiple_games(
             agent.eval(), old_agent, env, rng_key_2
         )

@@ -46,14 +46,15 @@ def play_one_move(
             temperature=temperature,
         )
         action = policy_output.action[0]
-        action_weights = jnp.log(policy_output.action_weights[0])
+        action_weights = policy_output.action_weights[0]
         root_idx = policy_output.search_tree.ROOT_INDEX
         value = policy_output.search_tree.node_values[0, root_idx]
     else:
         action_logits, value = agent(env.canonical_observation())
+        action_logits = jax.nn.log_softmax(action_logits, axis=-1)
         action_logits_ = _apply_temperature(action_logits, temperature)
         action_weights = jax.nn.softmax(action_logits_, axis=-1)
-        action = jax.random.categorical(rng_key, action_logits)
+        action = jax.random.categorical(rng_key, action_logits_)
 
     return action, action_weights, value
 

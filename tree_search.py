@@ -61,6 +61,6 @@ def improve_policy_with_mcts(
         num_simulations=num_simulations,
         invalid_actions=jax.vmap(lambda e: e.invalid_actions())(env),
         qtransform=mctx.qtransform_completed_by_mix_value,
-        gumbel_scale=1.0,
+        gumbel_scale=temperature,
     )
     return policy_output
