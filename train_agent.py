@@ -109,6 +109,36 @@ def collect_batched_self_play_data(
     return self_play_data
 
 
+def prepare_training_data(data: MoveOutput):
+    """Preprocess the data collected from self-play.
+
+    1. remove states after the enviroment is terminated.
+    2. compute the value at each state.
+    """
+    buffer = []
+    N = len(data.terminated)
+    for i in range(N):
+        state = data.state[i]
+        is_terminated = data.terminated[i]
+        action_weights = data.action_weights[i]
+        reward = data.reward[i]
+        L = len(is_terminated)
+        value = None
+        for idx in reversed(range(L)):
+            if is_terminated[idx]:
+                continue
+            value = reward[idx] if value is None else -value
+            buffer.append(
+                TrainingExample(
+                    state=np.copy(state[idx]),
+                    action_weights=np.copy(action_weights[idx]),
+                    value=np.array(value, dtype=np.float32),
+                )
+            )
+
+    return buffer
+
+
 def collect_self_play_data(
     agent,
     env,
@@ -138,39 +168,8 @@ def collect_self_play_data(
             )
             batch = jax.device_get(batch)
             batch = jax.tree_map(lambda x: x.reshape((-1, *x.shape[2:])), batch)
-            data.append(batch)
-    data = jax.tree_map(lambda *xs: np.concatenate(xs), *data)
+            data.extend(prepare_training_data(batch))
     return data
-
-
-def prepare_training_data(data: MoveOutput):
-    """Preprocess the data collected from self-play.
-
-    1. remove states after the enviroment is terminated.
-    2. compute the value at each state.
-    """
-    buffer = []
-    N = len(data.terminated)
-    for i in range(N):
-        state = data.state[i]
-        is_terminated = data.terminated[i]
-        action_weights = data.action_weights[i]
-        reward = data.reward[i]
-        L = len(is_terminated)
-        value = None
-        for idx in reversed(range(L)):
-            if is_terminated[idx]:
-                continue
-            value = reward[idx] if value is None else -value
-            buffer.append(
-                TrainingExample(
-                    state=state[idx],
-                    action_weights=action_weights[idx],
-                    value=np.array(value, dtype=np.float32),
-                )
-            )
-
-    return buffer
 
 
 def loss_fn(net, data: TrainingExample):
@@ -281,7 +280,6 @@ def train(
             num_self_plays_per_iteration,
             num_simulations_per_move,
         )
-        data = prepare_training_data(data)
         buffer.extend(data)
         data = list(buffer)
         old_agent = jax.tree_map(lambda x: jnp.copy(x), agent)

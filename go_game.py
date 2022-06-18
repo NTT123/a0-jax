@@ -41,10 +41,10 @@ class GoBoard(Enviroment):
         self.reset()
 
     def reset(self):
-        self.board = jnp.zeros((self.board_size, self.board_size), dtype=jnp.int32)
+        self.board = jnp.zeros((self.board_size, self.board_size), dtype=jnp.int8)
         self.recent_boards = jnp.stack([self.board] * self.num_recent_positions)
         self.prev_pass_move = jnp.array(False, dtype=jnp.bool_)
-        self.turn = jnp.array(1, dtype=jnp.int32)
+        self.turn = jnp.array(1, dtype=jnp.int8)
         self.dsu = DSU(self.board_size**2)
         self.done = jnp.array(False, dtype=jnp.bool_)
         self.count = jnp.array(0, dtype=jnp.int32)
@@ -180,7 +180,7 @@ class GoBoard(Enviroment):
         return (self.board_size**2) * 2
 
     def observation(self):
-        return jnp.swapaxes(self.recent_boards, 0, -1).astype(jnp.int8)
+        return jnp.swapaxes(self.recent_boards, 0, -1)
 
     def canonical_observation(self):
         return self.observation() * self.turn
