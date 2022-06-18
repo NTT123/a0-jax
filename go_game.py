@@ -5,10 +5,11 @@ Reference: https://github.com/pasky/michi/blob/master/michi.py
 """
 
 
+from typing import Tuple
+
 import chex
 import jax
 import jax.numpy as jnp
-import jmp
 import pax
 
 from dsu import DSU
@@ -23,27 +24,29 @@ class GoBoard(Enviroment):
     """
 
     board_size: int  # size of the board
+    recent_boards: Tuple[chex.Array]  # a list of recent positions
+    prev_pass_move: chex.Array  # if the previous move is a "pass" move
     turn: chex.Array  # who is playing (1: black, -1: white)
+    dsu: DSU  # a data structure of connected components
+    done: chex.Array  # the game ended
+    count: chex.Array  # number of move played
 
-    def __init__(self, board_size: int = 5, komi=0.5):
+    def __init__(self, board_size: int = 5, komi=0.5, num_recent_positions: int = 16):
         super().__init__()
         self.board_size = board_size
+        self.num_recent_positions = num_recent_positions
         self.komi = komi
-        self.board = jnp.zeros((board_size, board_size), dtype=jnp.int32)
-        self.prev_pass_move = jnp.array(False, dtype=jnp.bool_)
-        self.turn = jnp.array(1, dtype=jnp.int32)
-        self.dsu = DSU(board_size**2)
-        self.done = jnp.array(False, dtype=jnp.bool_)
-        self.is_invalid_action = jnp.array(False, dtype=jnp.bool_)
-        self.count = jnp.array(0, dtype=jnp.int32)
+        self.reset()
 
     def reset(self):
         self.board = jnp.zeros((self.board_size, self.board_size), dtype=jnp.int32)
+        self.recent_boards = tuple(
+            jnp.copy(self.board) for _ in range(self.num_recent_positions)
+        )
         self.prev_pass_move = jnp.array(False, dtype=jnp.bool_)
         self.turn = jnp.array(1, dtype=jnp.int32)
         self.dsu = DSU(self.board_size**2)
         self.done = jnp.array(False, dtype=jnp.bool_)
-        self.is_invalid_action = jnp.array(False, dtype=jnp.bool_)
         self.count = jnp.array(0, dtype=jnp.int32)
 
     @pax.pure
@@ -54,10 +57,9 @@ class GoBoard(Enviroment):
 
         For "pass move": action = board_size x board_size
         """
-        i, j = jnp.divmod(action, self.board_size)
-        prev_board = self.board
         is_pass_move = action == (self.board_size**2)
         action = jnp.clip(action, a_min=0, a_max=self.board_size**2 - 1)
+        i, j = jnp.divmod(action, self.board_size)
         is_invalid_action = self.board[i, j] != 0
         board = self.board.at[i, j].set(self.turn).reshape((-1,))
 
@@ -118,7 +120,10 @@ class GoBoard(Enviroment):
         dsu = dsu_reset(dsu, board == 0)
 
         board = board.reshape(self.board.shape)
-        same_board = jnp.all(prev_board == board)
+        recent_boards = self.recent_boards
+        same_board = jnp.array(False, dtype=jnp.bool_)
+        for prev_board in recent_boards:
+            same_board = jnp.logical_or(same_board, jnp.all(prev_board == board))
         repeat_position = jnp.logical_and(same_board, jnp.logical_not(is_pass_move))
         is_invalid_action = jnp.logical_or(is_invalid_action, repeat_position)
 
@@ -143,7 +148,8 @@ class GoBoard(Enviroment):
         self.prev_pass_move = is_pass_move
         self.dsu = dsu
         self.count = count
-        self.is_invalid_action = is_invalid_action
+        self.recent_boards = recent_boards[1:] + (jnp.copy(board),)
+
         reward = jnp.array(0.0)
         reward = jnp.where(done, jnp.where(game_score > 0, 1.0, -1.0), reward)
         reward = jnp.where(is_invalid_action, -1.0, reward)
@@ -178,10 +184,10 @@ class GoBoard(Enviroment):
         return (self.board_size**2) * 2
 
     def observation(self):
-        return self.board
+        return jnp.stack(self.recent_boards, axis=-1)
 
     def canonical_observation(self):
-        return self.board * self.turn
+        return self.observation() * self.turn
 
     def is_terminated(self) -> chex.Array:
         return self.done
@@ -225,19 +231,20 @@ class GoBoard(Enviroment):
             print()
 
 
-_env_step = jax.jit(pax.pure(lambda e, a: (e, e.step(a))))
+_env_step = jax.jit(pax.pure(lambda e, a: e.step(a)))
 
 
 def put_stone(env, action):
     i = ord(action[0]) - ord("a")
     j = ord(action[1]) - ord("a")
     action = i * env.board_size + j
+    action = jnp.array(action, dtype=jnp.int32)
     return _env_step(env, action)
 
 
 if __name__ == "__main__":
     game = GoBoard(9)
-    while game.done.item() == False:
+    while game.done.item() is False:
         game.render()
         user_action = input("> ")
         game, _ = put_stone(game, user_action)

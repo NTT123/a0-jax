@@ -41,10 +41,19 @@ class ResnetPolicyValueNet(pax.Module):
         self, input_dims, num_actions: int, dim: int = 128, num_resblock: int = 5
     ):
         super().__init__()
+        if len(input_dims) == 3:
+            num_input_channels = input_dims[-1]
+            input_dims = input_dims[:-1]
+            self.has_channel_dim = True
+        else:
+            num_input_channels = 1
+            self.has_channel_dim = False
 
         self.input_dims = input_dims
         self.num_actions = num_actions
-        self.backbone = pax.Sequential(pax.Conv2D(1, dim, 1), pax.BatchNorm2D(dim))
+        self.backbone = pax.Sequential(
+            pax.Conv2D(num_input_channels, dim, 1), pax.BatchNorm2D(dim)
+        )
         for _ in range(num_resblock):
             self.backbone >>= ResidualBlock(dim)
         self.action_head = pax.Sequential(
@@ -72,7 +81,8 @@ class ResnetPolicyValueNet(pax.Module):
         x = x.astype(jnp.float32)
         if not batched:
             x = x[None]  # add the batch dimension
-        x = x[..., None]  # add channel dimension
+        if not self.has_channel_dim:
+            x = x[..., None]  # add channel dimension
         x = self.backbone(x)
         action_logits = self.action_head(x)
         value = self.value_head(x)
