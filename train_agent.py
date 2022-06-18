@@ -193,10 +193,11 @@ def loss_fn(net, data: TrainingExample):
     return mse_loss + kl_loss, (net, (mse_loss, kl_loss))
 
 
-@jax.jit
+@partial(jax.pmap, axis_name="i")
 def train_step(net, optim, data: TrainingExample):
     """A training step."""
     (_, (net, losses)), grads = jax.value_and_grad(loss_fn, has_aux=True)(net, data)
+    grads = jax.lax.pmean(grads, axis_name="i")
     net, optim = opax.apply_gradients(net, optim, grads)
     return net, optim, losses
 
@@ -248,6 +249,9 @@ def train(
     buffer = Deque(maxlen=buffer_size)
     start_temperature = jnp.array(start_temperature, dtype=jnp.float32)
 
+    devices = jax.local_devices()
+    num_devices = jax.local_device_count()
+
     for iteration in range(start_iter, num_iterations):
         temperature = start_temperature * jnp.power(temperature_decay, iteration)
         temperature = jnp.clip(temperature, a_min=end_temperature)
@@ -268,6 +272,8 @@ def train(
         data = list(buffer)
         old_agent = jax.tree_map(lambda x: jnp.copy(x), agent)
         agent, losses, count = agent.train(), [], 0
+        agent, optim = jax.device_put_replicated((agent, optim), devices)
+
         with click.progressbar(
             length=num_updates_per_iteration, label="  train agent"
         ) as bar:
@@ -276,7 +282,12 @@ def train(
                 N = len(data)
                 for i in range(0, N - batch_size, batch_size):
                     batch = data[i : (i + batch_size)]
-                    batch = jax.tree_map(lambda *xs: np.stack(xs), *batch)
+
+                    def stack_and_reshape(*xs):
+                        x = jnp.stack(xs)
+                        return jnp.reshape(x, (num_devices, -1) + x.shape[1:])
+
+                    batch = jax.tree_map(stack_and_reshape, *batch)
                     agent, optim, loss = train_step(agent, optim, batch)
                     losses.append(loss)
                     count = count + 1
@@ -285,8 +296,9 @@ def train(
                         break
 
         value_loss, policy_loss = zip(*losses)
-        value_loss = sum(value_loss).item() / len(value_loss)
-        policy_loss = sum(policy_loss).item() / len(policy_loss)
+        value_loss = jnp.mean(sum(value_loss)).item() / len(value_loss)
+        policy_loss = jnp.mean(sum(policy_loss)).item() / len(policy_loss)
+        agent, optim = jax.tree_map(lambda x: x[0], (agent, optim))
         print(
             f"  buffer size {N}  temperature {temperature:.3f}  value loss {value_loss:.3f}  policy loss {policy_loss:.3f}"
         )

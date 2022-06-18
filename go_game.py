@@ -4,9 +4,6 @@ Go board gym-like environment.
 Reference: https://github.com/pasky/michi/blob/master/michi.py
 """
 
-
-from typing import Tuple
-
 import chex
 import jax
 import jax.numpy as jnp
@@ -27,7 +24,7 @@ class GoBoard(Enviroment):
     num_recent_positions: int  # number of recent position will be kept
     komi: float  # added score to white player
     board: chex.Array  # the current position
-    recent_boards: Tuple[chex.Array]  # a list of recent positions
+    recent_boards: chex.Array  # a list of recent positions
     prev_pass_move: chex.Array  # if the previous move is a "pass" move
     turn: chex.Array  # who is playing (1: black, -1: white)
     dsu: DSU  # a data structure of connected components
@@ -56,9 +53,7 @@ class GoBoard(Enviroment):
     def step(self, action):
         """One environment step.
 
-        This function is similar to OpenAI gym `step` function.
-
-        For "pass move": action = board_size x board_size
+        For "pass" move, action = board_size x board_size
         """
         is_pass_move = action == (self.board_size**2)
         action = jnp.clip(action, a_min=0, a_max=self.board_size**2 - 1)
