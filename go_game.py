@@ -180,7 +180,9 @@ class GoBoard(Enviroment):
         return (self.board_size**2) * 2
 
     def observation(self):
-        return jnp.swapaxes(self.recent_boards, 0, -1)
+        turn = jnp.ones_like(self.board)[None]
+        board = jnp.concatenate((self.recent_boards, turn))
+        return jnp.swapaxes(board, 0, -1)
 
     def canonical_observation(self):
         return self.observation() * self.turn
