@@ -212,7 +212,7 @@ def train(
     num_self_plays_per_iteration: int = 1024,
     learning_rate: float = 0.001,
     ckpt_filename: str = "./agent.ckpt",
-    data_dir: Path = Path("./train_data"),
+    data_dir: str = "./train_data",
     random_seed: int = 42,
     weight_decay: float = 1e-4,
     start_temperature: float = 1.0,
@@ -249,6 +249,7 @@ def train(
     shuffler = random.Random(random_seed)
     buffer = Deque(maxlen=buffer_size)
     start_temperature = jnp.array(start_temperature, dtype=jnp.float32)
+    data_dir = Path(data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
 
     # load data from disk
