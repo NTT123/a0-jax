@@ -190,8 +190,8 @@ class GoBoard(Enviroment):
 
     def invalid_actions(self):
         """Return invalid actions."""
-        # overriding opponent's stones are invalid actions.
-        actions = self.board == -self.turn
+        # overriding stones are invalid actions.
+        actions = self.board != 0
         actions = actions.reshape(actions.shape[:-2] + (-1,))
         # append "pass" action at the end
         pad = [(0, 0) for _ in range(len(actions.shape))]
