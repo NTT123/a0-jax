@@ -269,7 +269,6 @@ def train(
         temperature = start_temperature * jnp.power(temperature_decay, iteration)
         temperature = jnp.clip(temperature, a_min=end_temperature)
         print(f"Iteration {iteration}")
-        print(f"  temperature     {temperature:.3f}")
         rng_key_1, rng_key_2, rng_key_3, rng_key = jax.random.split(rng_key, 4)
         agent = agent.eval()
         data = collect_self_play_data(
@@ -282,11 +281,9 @@ def train(
             num_simulations_per_move,
         )
         buffer.extend(data)
-        print(f"  buffer size     {len(buffer)}")
         data = list(buffer)
         old_agent = jax.tree_map(lambda x: jnp.copy(x), agent)
         agent, losses = agent.train(), []
-        print(f"  learning rate   {optim[-1].learning_rate:.1e}")
         agent, optim = jax.device_put_replicated((agent, optim), devices)
         data_iter = batched_data_loader(data)
         with click.progressbar(
@@ -301,8 +298,6 @@ def train(
         value_loss = np.mean(sum(jax.device_get(value_loss))) / len(value_loss)
         policy_loss = np.mean(sum(jax.device_get(policy_loss))) / len(policy_loss)
         agent, optim = jax.tree_map(lambda x: x[0], (agent, optim))
-        print(f"  value loss      {value_loss:.3f}")
-        print(f"  policy loss     {policy_loss:.3f}")
         win_count1, draw_count1, loss_count1 = agent_vs_agent_multiple_games(
             agent.eval(), old_agent, env, rng_key_2
         )
@@ -315,6 +310,11 @@ def train(
                 draw_count1 + draw_count2,
                 loss_count1 + loss_count2,
             )
+        )
+        print(
+            f"  value loss {value_loss:.3f}  policy loss {policy_loss:.3f}"
+            f"  learning rate {optim[-1].learning_rate:.1e}  temperature {temperature:.3f}"
+            f"  buffer size {len(buffer)}"
         )
         # save agent's weights to disk
         with open(ckpt_filename, "wb") as f:
