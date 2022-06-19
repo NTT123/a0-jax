@@ -282,12 +282,11 @@ def train(
             num_simulations_per_move,
         )
         buffer.extend(data)
-        N = len(data)
-        print(f"  buffer size     {N}")
+        print(f"  buffer size     {len(buffer)}")
         data = list(buffer)
         old_agent = jax.tree_map(lambda x: jnp.copy(x), agent)
         agent, losses = agent.train(), []
-        print(f"  learning rate   {optim[-1].learning_rate:.3f}")
+        print(f"  learning rate   {optim[-1].learning_rate:.1e}")
         agent, optim = jax.device_put_replicated((agent, optim), devices)
         data_iter = batched_data_loader(data)
         with click.progressbar(
