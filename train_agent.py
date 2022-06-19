@@ -8,6 +8,7 @@ import os
 import pickle
 import random
 from functools import partial
+from pathlib import Path
 from typing import Deque
 
 import chex
@@ -211,6 +212,7 @@ def train(
     num_self_plays_per_iteration: int = 1024,
     learning_rate: float = 0.001,
     ckpt_filename: str = "./agent.ckpt",
+    data_dir: Path = Path("./train_data"),
     random_seed: int = 42,
     weight_decay: float = 1e-4,
     start_temperature: float = 1.0,
@@ -247,6 +249,13 @@ def train(
     shuffler = random.Random(random_seed)
     buffer = Deque(maxlen=buffer_size)
     start_temperature = jnp.array(start_temperature, dtype=jnp.float32)
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    # load data from disk
+    data_files = sorted(data_dir.glob("data_*.pickle"))
+    for data_file in data_files:
+        with open(data_file, "rb") as f:
+            buffer.extend(pickle.load(f))
 
     devices = jax.local_devices()
     num_devices = jax.local_device_count()
@@ -280,6 +289,12 @@ def train(
             num_self_plays_per_iteration,
             num_simulations_per_move,
         )
+
+        # save data to disk
+        data_file = data_dir / f"data_{iteration:07d}.pickle"
+        with open(data_file, "wb") as f:
+            pickle.dump(data, f)
+
         buffer.extend(data)
         data = list(buffer)
         old_agent = jax.tree_map(lambda x: jnp.copy(x), agent)
