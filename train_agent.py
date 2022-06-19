@@ -213,9 +213,9 @@ def train(
     ckpt_filename: str = "./agent.ckpt",
     random_seed: int = 42,
     weight_decay: float = 1e-4,
-    start_temperature: float = 2.0,
-    end_temperature: float = 0.1,
-    temperature_decay=0.9,
+    start_temperature: float = 1.0,
+    end_temperature: float = 1.0,
+    temperature_decay=1.0,
     buffer_size: int = 20_000,
     lr_decay_steps: int = 100_000,
 ):
