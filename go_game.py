@@ -200,9 +200,7 @@ class GoBoard(Enviroment):
 
     def step_s(self, xy_position: str):
         """A step using string actions."""
-        x_pos = ord(xy_position[0]) - ord("a")
-        y_pos = ord(xy_position[1]) - ord("a")
-        action = x_pos * self.board_size + y_pos
+        action = self.parse_action(xy_position)
         return self.step(action)
 
     def render(self):
@@ -226,14 +224,23 @@ class GoBoard(Enviroment):
                 print(symbol, end=" ")
             print()
 
+    def parse_action(self, action_str: str) -> int:
+        """Parse 2d alphabet actions + "pass" action"""
+        action_str = action_str.lower()
+        if action_str == "pass":
+            return self.board_size * self.board_size
+
+        i = ord(action_str[0]) - ord("a")
+        j = ord(action_str[1]) - ord("a")
+        return i * self.board_size + j
+
 
 _env_step = jax.jit(pax.pure(lambda e, a: e.step(a)))
 
 
 def put_stone(env, action):
-    i = ord(action[0]) - ord("a")
-    j = ord(action[1]) - ord("a")
-    action = i * env.board_size + j
+    """put a stone on the boar"""
+    action = env.parse_action(action)
     action = jnp.array(action, dtype=jnp.int32)
     return _env_step(env, action)
 

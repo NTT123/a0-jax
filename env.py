@@ -48,3 +48,7 @@ class Enviroment(pax.Module):
     def max_num_steps(self) -> int:
         """Return the maximum number of steps until the game is terminated."""
         raise NotImplementedError()
+
+    def parse_action(self, action_str: str) -> int:
+        """Parse a string action and return a number."""
+        return int(action_str)
