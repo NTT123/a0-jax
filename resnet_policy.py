@@ -90,3 +90,12 @@ class ResnetPolicyValueNet(pax.Module):
             return action_logits[:, 0, 0, :], value[:, 0, 0, 0]
         else:
             return action_logits[0, 0, 0, :], value[0, 0, 0, 0]
+
+
+class ResnetPolicyValueNet256(ResnetPolicyValueNet):
+    """Create a resnet of 256 channels, 6 blocks"""
+
+    def __init__(
+        self, input_dims, num_actions: int, dim: int = 256, num_resblock: int = 6
+    ):
+        super().__init__(input_dims, num_actions, dim, num_resblock)
