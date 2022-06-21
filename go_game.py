@@ -177,7 +177,7 @@ class GoBoard(Enviroment):
         return self.board_size**2 + 1
 
     def max_num_steps(self):
-        return (self.board_size**2) * 2
+        return (self.board_size**2) * 4
 
     def observation(self):
         turn = jnp.ones_like(self.board)[None]
