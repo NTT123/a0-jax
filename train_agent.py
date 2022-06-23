@@ -249,14 +249,20 @@ def train(
     shuffler = random.Random(random_seed)
     buffer = Deque(maxlen=buffer_size)
     start_temperature = jnp.array(start_temperature, dtype=jnp.float32)
-    data_dir = Path(data_dir)
-    data_dir.mkdir(parents=True, exist_ok=True)
 
-    # load data from disk
-    data_files = sorted(data_dir.glob("data_*.pickle"))
-    for data_file in data_files:
-        with open(data_file, "rb") as f:
-            buffer.extend(pickle.load(f))
+    if len(data_dir) > 0:
+        data_dir = Path(data_dir)
+        data_dir.mkdir(parents=True, exist_ok=True)
+        backup_data = True
+    else:
+        backup_data = False
+
+    if backup_data:
+        # load data from disk
+        data_files = sorted(data_dir.glob("data_*.pickle"))
+        for data_file in data_files:
+            with open(data_file, "rb") as f:
+                buffer.extend(pickle.load(f))
 
     devices = jax.local_devices()
     num_devices = jax.local_device_count()
@@ -291,10 +297,11 @@ def train(
             num_simulations_per_move,
         )
 
-        # save data to disk
-        data_file = data_dir / f"data_{iteration:07d}.pickle"
-        with open(data_file, "wb") as f:
-            pickle.dump(data, f)
+        if backup_data:
+            # save data to disk
+            data_file = data_dir / f"data_{iteration:07d}.pickle"
+            with open(data_file, "wb") as f:
+                pickle.dump(data, f)
 
         buffer.extend(data)
         data = list(buffer)
