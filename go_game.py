@@ -170,7 +170,8 @@ class GoBoard(Enviroment):
         x4 = padded_board[1:-1, 2:]
         x12 = jnp.logical_and(x1, x2)
         x34 = jnp.logical_and(x3, x4)
-        x = jnp.logical_and(x12, x34)
+        x1234 = jnp.logical_and(x12, x34)
+        x = jnp.logical_and(x1234, board == 0)
         return jnp.sum(x)
 
     def num_actions(self):
