@@ -17,14 +17,6 @@ from tree_search import improve_policy_with_mcts, recurrent_fn
 from utils import env_step, import_class, replicate, reset_env
 
 
-def _apply_temperature(logits, temperature):
-    """Returns `logits / temperature`, supporting also temperature=0."""
-    # The max subtraction prevents +inf after dividing by a small temperature.
-    logits = logits - jnp.max(logits, keepdims=True, axis=-1)
-    tiny = jnp.finfo(logits.dtype).tiny
-    return logits / jnp.maximum(tiny, temperature)
-
-
 @partial(jax.jit, static_argnames=("temperature", "num_simulations", "enable_mcts"))
 def play_one_move(
     agent,
@@ -32,7 +24,7 @@ def play_one_move(
     rng_key: chex.Array,
     enable_mcts: bool = False,
     num_simulations: int = 1024,
-    temperature=0.2,
+    temperature=1.0,
 ):
     """Play a move using agent's policy"""
     if enable_mcts:
@@ -45,17 +37,14 @@ def play_one_move(
             num_simulations=num_simulations,
             temperature=temperature,
         )
-        action = policy_output.action[0]
         action_weights = policy_output.action_weights[0]
         root_idx = policy_output.search_tree.ROOT_INDEX
         value = policy_output.search_tree.node_values[0, root_idx]
     else:
         action_logits, value = agent(env.canonical_observation())
-        action_logits = jax.nn.log_softmax(action_logits, axis=-1)
-        action_logits_ = _apply_temperature(action_logits, temperature)
-        action_weights = jax.nn.softmax(action_logits_, axis=-1)
-        action = jax.random.categorical(rng_key, action_logits_)
+        action_weights = jax.nn.softmax(action_logits, axis=-1)
 
+    action = jnp.argmax(action_weights)
     return action, action_weights, value
 
 
@@ -66,7 +55,7 @@ def agent_vs_agent(
     rng_key: chex.Array,
     enable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
-    temperature: float = 0.2,
+    temperature: float = 1.0,
 ):
     """A game of agent1 vs agent2."""
 
@@ -112,7 +101,7 @@ def agent_vs_agent_multiple_games(
     rng_key,
     enable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
-    temperature: float = 0.2,
+    temperature: float = 1.0,
     num_games: int = 128,
 ):
     """Fast agent vs agent evaluation."""
@@ -139,7 +128,7 @@ def human_vs_agent(
     human_first: bool = True,
     enable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
-    temperature: float = 0.2,
+    temperature: float = 1.0,
 ):
     """A game of human vs agent."""
     env = reset_env(env)
@@ -209,6 +198,7 @@ def main(
         human_first=human_first,
         enable_mcts=enable_mcts,
         num_simulations_per_move=num_simulations_per_move,
+        temperature=1.0,
     )
 
 
