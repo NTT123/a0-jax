@@ -17,7 +17,10 @@ from tree_search import improve_policy_with_mcts, recurrent_fn
 from utils import env_step, import_class, replicate, reset_env
 
 
-@partial(jax.jit, static_argnames=("temperature", "num_simulations", "enable_mcts"))
+@partial(
+    jax.jit,
+    static_argnames=("temperature", "num_simulations", "enable_mcts", "random_action"),
+)
 def play_one_move(
     agent,
     env: Enviroment,
@@ -25,14 +28,16 @@ def play_one_move(
     enable_mcts: bool = False,
     num_simulations: int = 1024,
     temperature=1.0,
+    random_action: bool = True,
 ):
     """Play a move using agent's policy"""
     if enable_mcts:
         batched_env = replicate(env, 1)
+        rng_key, rng_key_1 = jax.random.split(rng_key)
         policy_output = improve_policy_with_mcts(
             agent,
             batched_env,
-            rng_key,
+            rng_key_1,
             rec_fn=recurrent_fn,
             num_simulations=num_simulations,
             temperature=temperature,
@@ -44,7 +49,10 @@ def play_one_move(
         action_logits, value = agent(env.canonical_observation())
         action_weights = jax.nn.softmax(action_logits, axis=-1)
 
-    action = jnp.argmax(action_weights)
+    if random_action:
+        action = jax.random.categorical(rng_key, jnp.log(action_weights), axis=-1)
+    else:
+        action = jnp.argmax(action_weights)
     return action, action_weights, value
 
 
@@ -152,6 +160,7 @@ def human_vs_agent(
                 enable_mcts=enable_mcts,
                 num_simulations=num_simulations_per_move,
                 temperature=temperature,
+                random_action=False,
             )
             print("#  A(s) =", action_weights)
             print("#  V(s) =", value)
