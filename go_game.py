@@ -155,7 +155,7 @@ class GoBoard(Enviroment):
         """Compute final score of the game."""
         my_score = jnp.sum(board == turn, axis=(-1, -2))
         my_score = my_score + self.count_eyes(board, turn)
-        my_score = my_score - self.turn * self.komi
+        my_score = my_score - turn * self.komi
         opp_score = jnp.sum(board == -turn, axis=(-1, -2))
         opp_score = opp_score + self.count_eyes(board, -turn)
         return my_score - opp_score
