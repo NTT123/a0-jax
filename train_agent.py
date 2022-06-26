@@ -219,7 +219,7 @@ def train(
     end_temperature: float = 1.0,
     temperature_decay=1.0,
     buffer_size: int = 20_000,
-    lr_decay_steps: int = 30_000,
+    lr_decay_steps: int = 100_000,
 ):
     """Train an agent by self-play."""
     env = import_class(game_class)()
