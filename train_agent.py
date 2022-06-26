@@ -210,7 +210,7 @@ def train(
     num_simulations_per_move: int = 16,
     num_updates_per_iteration: int = 100,
     num_self_plays_per_iteration: int = 1024,
-    learning_rate: float = 0.001,
+    learning_rate: float = 0.01,
     ckpt_filename: str = "./agent.ckpt",
     data_dir: str = "./train_data",
     random_seed: int = 42,
@@ -219,7 +219,7 @@ def train(
     end_temperature: float = 1.0,
     temperature_decay=1.0,
     buffer_size: int = 20_000,
-    lr_decay_steps: int = 100_000,
+    lr_decay_steps: int = 30_000,
 ):
     """Train an agent by self-play."""
     env = import_class(game_class)()
@@ -232,9 +232,9 @@ def train(
         e = jnp.floor(step * 1.0 / lr_decay_steps)
         return learning_rate * jnp.exp2(-e)
 
-    optim = opax.adamw(
-        lr_schedule,
-        weight_decay=weight_decay,
+    optim = opax.chain(
+        opax.add_decayed_weights(weight_decay),
+        opax.sgd(lr_schedule, momentum=0.9),
     ).init(agent.parameters())
     if os.path.isfile(ckpt_filename):
         print("Loading weights at", ckpt_filename)
@@ -336,7 +336,7 @@ def train(
         )
         print(
             f"  value loss {value_loss:.3f}  policy loss {policy_loss:.3f}"
-            f"  learning rate {optim[-1].learning_rate:.1e}  temperature {temperature:.3f}"
+            f"  learning rate {optim[1][-1].learning_rate:.1e}  temperature {temperature:.3f}"
             f"  buffer size {len(buffer)}"
         )
         # save agent's weights to disk

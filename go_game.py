@@ -32,7 +32,7 @@ class GoBoard(Enviroment):
     count: chex.Array  # number of move played
 
     def __init__(
-        self, board_size: int = 5, komi: float = 0.5, num_recent_positions: int = 16
+        self, board_size: int = 5, komi: float = 0.5, num_recent_positions: int = 8
     ):
         super().__init__()
         self.board_size = board_size
@@ -251,7 +251,7 @@ def put_stone(env, action):
 class GoBoard5x5(GoBoard):
     """Create a 5x5 board"""
 
-    def __init__(self, num_recent_positions: int = 16):
+    def __init__(self, num_recent_positions: int = 8):
         super().__init__(
             board_size=5, komi=0.5, num_recent_positions=num_recent_positions
         )
@@ -260,7 +260,7 @@ class GoBoard5x5(GoBoard):
 class GoBoard6x6(GoBoard):
     """Create a 6x6 board"""
 
-    def __init__(self, num_recent_positions: int = 16):
+    def __init__(self, num_recent_positions: int = 8):
         super().__init__(
             board_size=6, komi=0.5, num_recent_positions=num_recent_positions
         )
@@ -269,7 +269,7 @@ class GoBoard6x6(GoBoard):
 class GoBoard7x7(GoBoard):
     """Create a 7x7 board"""
 
-    def __init__(self, num_recent_positions: int = 16):
+    def __init__(self, num_recent_positions: int = 8):
         super().__init__(
             board_size=7, komi=0.5, num_recent_positions=num_recent_positions
         )
@@ -278,7 +278,7 @@ class GoBoard7x7(GoBoard):
 class GoBoard8x8(GoBoard):
     """Create a 8x8 board"""
 
-    def __init__(self, num_recent_positions: int = 16):
+    def __init__(self, num_recent_positions: int = 8):
         super().__init__(
             board_size=8, komi=0.5, num_recent_positions=num_recent_positions
         )
@@ -287,7 +287,7 @@ class GoBoard8x8(GoBoard):
 class GoBoard9x9(GoBoard):
     """Create a 9x9 board"""
 
-    def __init__(self, num_recent_positions: int = 16):
+    def __init__(self, num_recent_positions: int = 8):
         super().__init__(
             board_size=9, komi=6.5, num_recent_positions=num_recent_positions
         )
