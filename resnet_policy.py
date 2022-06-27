@@ -21,9 +21,10 @@ class ResidualBlock(pax.Module):
         self.conv2 = pax.Conv2D(dim, dim, 3)
 
     def __call__(self, x):
-        t = jax.nn.relu(self.batchnorm1(x))
+        t = x
+        t = jax.nn.relu(self.batchnorm1(t))
         t = self.conv1(t)
-        t = jax.nn.relu(self.batchnorm2(x))
+        t = jax.nn.relu(self.batchnorm2(t))
         t = self.conv2(t)
         return x + t
 
