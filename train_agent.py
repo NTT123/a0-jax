@@ -60,12 +60,11 @@ class MoveOutput:
     action_weights: chex.Array
 
 
-@partial(jax.pmap, in_axes=(None, None, 0, None), static_broadcasted_argnums=(4, 5))
+@partial(jax.pmap, in_axes=(None, None, 0), static_broadcasted_argnums=(3, 4))
 def collect_batched_self_play_data(
     agent,
     env: Enviroment,
     rng_key: chex.Array,
-    temperature: chex.Array,
     batch_size: int,
     num_simulations_per_move: int,
 ):
@@ -87,7 +86,6 @@ def collect_batched_self_play_data(
             rng_key,
             recurrent_fn,
             num_simulations_per_move,
-            temperature=temperature,
         )
         env, reward = jax.vmap(env_step)(env, policy_output.action)
         return (env, rng_key_next, step + 1), MoveOutput(
@@ -144,7 +142,6 @@ def collect_self_play_data(
     agent,
     env,
     rng_key: chex.Array,
-    temperature: float,
     batch_size: int,
     data_size: int,
     num_simulations_per_move: int,
@@ -163,7 +160,6 @@ def collect_self_play_data(
                 agent,
                 env,
                 rng_keys[i],
-                temperature,
                 batch_size // num_devices,
                 num_simulations_per_move,
             )
@@ -205,20 +201,15 @@ def train_step(net, optim, data: TrainingExample):
 def train(
     game_class="connect_two_game.Connect2Game",
     agent_class="mlp_policy.MlpPolicyValueNet",
-    batch_size: int = 1024,
-    num_iterations: int = 50,
-    num_simulations_per_move: int = 16,
-    num_updates_per_iteration: int = 100,
-    num_self_plays_per_iteration: int = 1024,
+    selfplay_batch_size: int = 128,
+    training_batch_size: int = 128,
+    num_iterations: int = 100,
+    num_simulations_per_move: int = 32,
+    num_self_plays_per_iteration: int = 128 * 100,
     learning_rate: float = 0.01,
     ckpt_filename: str = "./agent.ckpt",
-    data_dir: str = "./train_data",
     random_seed: int = 42,
     weight_decay: float = 1e-4,
-    start_temperature: float = 1.0,
-    end_temperature: float = 1.0,
-    temperature_decay=1.0,
-    buffer_size: int = 20_000,
     lr_decay_steps: int = 100_000,
 ):
     """Train an agent by self-play."""
@@ -236,6 +227,7 @@ def train(
         opax.add_decayed_weights(weight_decay),
         opax.sgd(lr_schedule, momentum=0.9),
     ).init(agent.parameters())
+
     if os.path.isfile(ckpt_filename):
         print("Loading weights at", ckpt_filename)
         with open(ckpt_filename, "rb") as f:
@@ -247,43 +239,15 @@ def train(
         start_iter = 0
     rng_key = jax.random.PRNGKey(random_seed)
     shuffler = random.Random(random_seed)
-    buffer = Deque(maxlen=buffer_size)
-    start_temperature = jnp.array(start_temperature, dtype=jnp.float32)
-
-    if len(data_dir) > 0:
-        data_dir = Path(data_dir)
-        data_dir.mkdir(parents=True, exist_ok=True)
-        backup_data = True
-    else:
-        backup_data = False
-
-    if backup_data:
-        # load data from disk
-        data_files = sorted(data_dir.glob("data_*.pickle"))
-        for data_file in data_files:
-            with open(data_file, "rb") as f:
-                buffer.extend(pickle.load(f))
-
     devices = jax.local_devices()
     num_devices = jax.local_device_count()
 
-    def batched_data_loader(data):
-        while True:
-            shuffler.shuffle(data)
-            for i in range(0, len(data) - batch_size, batch_size):
-                batch = data[i : (i + batch_size)]
-
-                def stack_and_reshape(*xs):
-                    x = np.stack(xs)
-                    x = np.reshape(x, (num_devices, -1) + x.shape[1:])
-                    return x
-
-                batch = jax.tree_map(stack_and_reshape, *batch)
-                yield batch
+    def _stack_and_reshape(*xs):
+        x = np.stack(xs)
+        x = np.reshape(x, (num_devices, -1) + x.shape[1:])
+        return x
 
     for iteration in range(start_iter, num_iterations):
-        temperature = start_temperature * jnp.power(temperature_decay, iteration)
-        temperature = jnp.clip(temperature, a_min=end_temperature)
         print(f"Iteration {iteration}")
         rng_key_1, rng_key_2, rng_key_3, rng_key = jax.random.split(rng_key, 4)
         agent = agent.eval()
@@ -291,29 +255,20 @@ def train(
             agent,
             env,
             rng_key_1,
-            temperature,
-            batch_size,
+            selfplay_batch_size,
             num_self_plays_per_iteration,
             num_simulations_per_move,
         )
-
-        if backup_data:
-            # save data to disk
-            data_file = data_dir / f"data_{iteration:07d}.pickle"
-            with open(data_file, "wb") as f:
-                pickle.dump(data, f)
-
-        buffer.extend(data)
-        data = list(buffer)
+        data = list(data)
+        shuffler.shuffle(data)
         old_agent = jax.tree_map(lambda x: jnp.copy(x), agent)
         agent, losses = agent.train(), []
         agent, optim = jax.device_put_replicated((agent, optim), devices)
-        data_iter = batched_data_loader(data)
-        with click.progressbar(
-            length=num_updates_per_iteration, label="  train agent   "
-        ) as progressbar:
-            for _ in progressbar:
-                batch = next(data_iter)
+        ids = range(0, len(data) - training_batch_size, training_batch_size)
+        with click.progressbar(ids, label="  train agent   ") as progressbar:
+            for idx in progressbar:
+                batch = data[idx : (idx + training_batch_size)]
+                batch = jax.tree_map(_stack_and_reshape, *batch)
                 agent, optim, loss = train_step(agent, optim, batch)
                 losses.append(loss)
 
@@ -335,9 +290,9 @@ def train(
             )
         )
         print(
-            f"  value loss {value_loss:.3f}  policy loss {policy_loss:.3f}"
-            f"  learning rate {optim[1][-1].learning_rate:.1e}  temperature {temperature:.3f}"
-            f"  buffer size {len(buffer)}"
+            f"  value loss {value_loss:.3f}"
+            f"  policy loss {policy_loss:.3f}"
+            f"  learning rate {optim[1][-1].learning_rate:.1e}"
         )
         # save agent's weights to disk
         with open(ckpt_filename, "wb") as f:

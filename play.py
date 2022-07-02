@@ -19,7 +19,7 @@ from utils import env_step, import_class, replicate, reset_env
 
 @partial(
     jax.jit,
-    static_argnames=("temperature", "num_simulations", "enable_mcts", "random_action"),
+    static_argnames=("num_simulations", "enable_mcts", "random_action"),
 )
 def play_one_move(
     agent,
@@ -27,7 +27,6 @@ def play_one_move(
     rng_key: chex.Array,
     enable_mcts: bool = False,
     num_simulations: int = 1024,
-    temperature=1.0,
     random_action: bool = True,
 ):
     """Play a move using agent's policy"""
@@ -40,7 +39,6 @@ def play_one_move(
             rng_key_1,
             rec_fn=recurrent_fn,
             num_simulations=num_simulations,
-            temperature=temperature,
         )
         action_weights = policy_output.action_weights[0]
         root_idx = policy_output.search_tree.ROOT_INDEX
@@ -63,7 +61,6 @@ def agent_vs_agent(
     rng_key: chex.Array,
     enable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
-    temperature: float = 1.0,
 ):
     """A game of agent1 vs agent2."""
 
@@ -82,7 +79,6 @@ def agent_vs_agent(
             rng_key_1,
             enable_mcts=enable_mcts,
             num_simulations=num_simulations_per_move,
-            temperature=temperature,
         )
         env, reward = env_step(env, action)
         state = (env, a2, a1, turn * reward, rng_key, -turn, step + 1)
@@ -101,7 +97,7 @@ def agent_vs_agent(
     return state[3]
 
 
-@partial(jax.jit, static_argnums=(4, 5, 6, 7))
+@partial(jax.jit, static_argnums=(4, 5, 6))
 def agent_vs_agent_multiple_games(
     agent1,
     agent2,
@@ -109,7 +105,6 @@ def agent_vs_agent_multiple_games(
     rng_key,
     enable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
-    temperature: float = 1.0,
     num_games: int = 128,
 ):
     """Fast agent vs agent evaluation."""
@@ -118,7 +113,6 @@ def agent_vs_agent_multiple_games(
     avsa = partial(
         agent_vs_agent,
         enable_mcts=enable_mcts,
-        temperature=temperature,
         num_simulations_per_move=num_simulations_per_move,
     )
     batched_avsa = jax.vmap(avsa, in_axes=(None, None, 0, 0))
@@ -136,7 +130,6 @@ def human_vs_agent(
     human_first: bool = True,
     enable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
-    temperature: float = 1.0,
 ):
     """A game of human vs agent."""
     env = reset_env(env)
@@ -159,7 +152,6 @@ def human_vs_agent(
                 rng_key_1,
                 enable_mcts=enable_mcts,
                 num_simulations=num_simulations_per_move,
-                temperature=temperature,
                 random_action=False,
             )
             print("#  A(s) =", action_weights)
@@ -207,7 +199,6 @@ def main(
         human_first=human_first,
         enable_mcts=enable_mcts,
         num_simulations_per_move=num_simulations_per_move,
-        temperature=1.0,
     )
 
 

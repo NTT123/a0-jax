@@ -39,7 +39,7 @@ class ResnetPolicyValueNet(pax.Module):
     """
 
     def __init__(
-        self, input_dims, num_actions: int, dim: int = 128, num_resblock: int = 5
+        self, input_dims, num_actions: int, dim: int = 64, num_resblock: int = 5
     ):
         super().__init__()
         if len(input_dims) == 3:

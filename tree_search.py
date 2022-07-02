@@ -21,9 +21,6 @@ def recurrent_fn(params, rng_key: chex.Array, action: chex.Array, embedding):
     env, reward = jax.vmap(env_step)(env, action)
     state = jax.vmap(lambda e: e.canonical_observation())(env)
     prior_logits, value = jax.vmap(lambda a, s: a(s), in_axes=(None, 0))(agent, state)
-    invalid_actions = jax.vmap(lambda e: e.invalid_actions())(env)
-    assert invalid_actions.shape == prior_logits.shape
-    prior_logits = jnp.where(invalid_actions, float("-inf"), prior_logits)
     discount = -1.0 * jnp.ones_like(reward)
     terminated = env.is_terminated()
     assert value.shape == terminated.shape
@@ -45,7 +42,6 @@ def improve_policy_with_mcts(
     rng_key: chex.Array,
     rec_fn,
     num_simulations: int,
-    temperature: float = 1.0,
 ):
     """Improve agent policy using MCTS.
 
@@ -63,8 +59,11 @@ def improve_policy_with_mcts(
         num_simulations=num_simulations,
         invalid_actions=jax.vmap(lambda e: e.invalid_actions())(env),
         qtransform=partial(
-            mctx.qtransform_completed_by_mix_value, value_scale=1.0, maxvisit_init=50
+            mctx.qtransform_completed_by_mix_value,
+            value_scale=0.1,
+            maxvisit_init=50,
+            rescale_values=False,
         ),
-        gumbel_scale=temperature,
+        gumbel_scale=1.0,
     )
     return policy_output
