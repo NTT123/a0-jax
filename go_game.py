@@ -145,7 +145,6 @@ class GoBoard(Enviroment):
         self.dsu = dsu
         self.count = count
         self.recent_boards = jnp.concatenate((recent_boards[1:], board[None]))
-        self.board = jnp.where(self.done, -2, self.board)
 
         reward = jnp.array(0.0)
         reward = jnp.where(done, jnp.where(game_score > 0, 1.0, -1.0), reward)

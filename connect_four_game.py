@@ -108,7 +108,6 @@ class Connect4Game(Enviroment):
             self.terminated, count >= self.num_cols * self.num_rows
         )
         self.terminated = jnp.logical_or(self.terminated, invalid_move)
-        self.board = jnp.where(self.terminated, -2, self.board)
         reward = jnp.where(invalid_move, -1.0, reward)
         return self, reward
 
