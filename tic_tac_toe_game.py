@@ -9,6 +9,7 @@ import numpy as np
 import pax
 
 from env import Enviroment
+from utils import select_tree
 
 
 class TicTacToeWinnerChecker(pax.Module):
@@ -91,7 +92,7 @@ class TicTacToeGame(Enviroment):
         """
         invalid_move = self.board[action] != 0
         board_ = self.board.at[action].set(self.who_play)
-        self.board = jmp.select_tree(self.terminated, self.board, board_)
+        self.board = select_tree(self.terminated, self.board, board_)
         self.winner = self.winner_checker(self.observation())
         reward_ = self.winner * self.who_play
         # increase column counter
@@ -124,7 +125,7 @@ class TicTacToeGame(Enviroment):
         return jnp.reshape(board, board.shape[:-1] + (self.num_rows, self.num_cols))
 
     def canonical_observation(self) -> chex.Array:
-        return self.observation() * self.who_play[..., None, None]
+        return self.observation() * self.who_play
 
     def is_terminated(self):
         return self.terminated

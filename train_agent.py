@@ -8,7 +8,6 @@ import os
 import pickle
 import random
 from functools import partial
-from typing import Deque
 
 import chex
 import click
@@ -59,14 +58,13 @@ class MoveOutput:
     action_weights: chex.Array
 
 
-@partial(jax.pmap, in_axes=(None, None, 0), static_broadcasted_argnums=(3, 4, 5))
+@partial(jax.pmap, in_axes=(None, None, 0), static_broadcasted_argnums=(3, 4))
 def collect_batched_self_play_data(
     agent,
     env: Enviroment,
     rng_key: chex.Array,
     batch_size: int,
     num_simulations_per_move: int,
-    temperature_decay: float,
 ):
     """Collect a batch of self-play data using mcts."""
 
@@ -78,16 +76,14 @@ def collect_batched_self_play_data(
         env, rng_key, step = prev
         del inputs
         rng_key, rng_key_next = jax.random.split(rng_key, 2)
-        state = env.canonical_observation()
+        state = jax.vmap(lambda e: e.canonical_observation())(env)
         terminated = env.is_terminated()
-        temperature = jnp.power(temperature_decay, step)
         policy_output = improve_policy_with_mcts(
             agent,
             env,
             rng_key,
             recurrent_fn,
             num_simulations_per_move,
-            temperature=temperature,
         )
         env, reward = jax.vmap(env_step)(env, policy_output.action)
         return (env, rng_key_next, step + 1), MoveOutput(
@@ -108,40 +104,6 @@ def collect_batched_self_play_data(
         time_major=False,
     )
     return self_play_data
-
-
-def collect_self_play_data(
-    agent,
-    env,
-    rng_key: chex.Array,
-    batch_size: int,
-    data_size: int,
-    num_simulations_per_move: int,
-    temperature_decay: float,
-):
-    """Collect self-play data for training."""
-    N = data_size // batch_size
-    devices = jax.local_devices()
-    num_devices = len(devices)
-    rng_keys = jax.random.split(rng_key, N * num_devices)
-    rng_keys = jnp.stack(rng_keys).reshape((N, num_devices, -1))
-    data = []
-
-    with click.progressbar(range(N), label="  self play  ") as bar:
-        for i in bar:
-            batch = collect_batched_self_play_data(
-                agent,
-                env,
-                rng_keys[i],
-                batch_size // num_devices,
-                num_simulations_per_move,
-                temperature_decay,
-            )
-            batch = jax.device_get(batch)
-            batch = jax.tree_map(lambda x: x.reshape((-1, *x.shape[2:])), batch)
-            data.append(batch)
-    data = jax.tree_map(lambda *xs: np.concatenate(xs), *data)
-    return data
 
 
 def prepare_training_data(data: MoveOutput):
@@ -165,13 +127,44 @@ def prepare_training_data(data: MoveOutput):
             value = reward[idx] if value is None else -value
             buffer.append(
                 TrainingExample(
-                    state=state[idx],
-                    action_weights=action_weights[idx],
+                    state=np.copy(state[idx]),
+                    action_weights=np.copy(action_weights[idx]),
                     value=np.array(value, dtype=np.float32),
                 )
             )
 
     return buffer
+
+
+def collect_self_play_data(
+    agent,
+    env,
+    rng_key: chex.Array,
+    batch_size: int,
+    data_size: int,
+    num_simulations_per_move: int,
+):
+    """Collect self-play data for training."""
+    N = data_size // batch_size
+    devices = jax.local_devices()
+    num_devices = len(devices)
+    rng_keys = jax.random.split(rng_key, N * num_devices)
+    rng_keys = jnp.stack(rng_keys).reshape((N, num_devices, -1))
+    data = []
+
+    with click.progressbar(range(N), label="  self play     ") as bar:
+        for i in bar:
+            batch = collect_batched_self_play_data(
+                agent,
+                env,
+                rng_keys[i],
+                batch_size // num_devices,
+                num_simulations_per_move,
+            )
+            batch = jax.device_get(batch)
+            batch = jax.tree_map(lambda x: x.reshape((-1, *x.shape[2:])), batch)
+            data.extend(prepare_training_data(batch))
+    return data
 
 
 def loss_fn(net, data: TrainingExample):
@@ -194,10 +187,11 @@ def loss_fn(net, data: TrainingExample):
     return mse_loss + kl_loss, (net, (mse_loss, kl_loss))
 
 
-@jax.jit
+@partial(jax.pmap, axis_name="i")
 def train_step(net, optim, data: TrainingExample):
     """A training step."""
     (_, (net, losses)), grads = jax.value_and_grad(loss_fn, has_aux=True)(net, data)
+    grads = jax.lax.pmean(grads, axis_name="i")
     net, optim = opax.apply_gradients(net, optim, grads)
     return net, optim, losses
 
@@ -205,16 +199,16 @@ def train_step(net, optim, data: TrainingExample):
 def train(
     game_class="connect_two_game.Connect2Game",
     agent_class="mlp_policy.MlpPolicyValueNet",
-    batch_size: int = 32,
-    num_iterations: int = 50,
-    num_simulations_per_move: int = 16,
-    num_self_plays_per_iteration: int = 1024,
-    learning_rate: float = 0.001,
+    selfplay_batch_size: int = 128,
+    training_batch_size: int = 128,
+    num_iterations: int = 100,
+    num_simulations_per_move: int = 32,
+    num_self_plays_per_iteration: int = 128 * 100,
+    learning_rate: float = 0.01,
     ckpt_filename: str = "./agent.ckpt",
     random_seed: int = 42,
     weight_decay: float = 1e-4,
-    temperature_decay=0.9,
-    buffer_size: int = 20_000,
+    lr_decay_steps: int = 100_000,
 ):
     """Train an agent by self-play."""
     env = import_class(game_class)()
@@ -222,10 +216,16 @@ def train(
         input_dims=env.observation().shape,
         num_actions=env.num_actions(),
     )
-    optim = opax.adamw(
-        learning_rate,
-        weight_decay=weight_decay,
+
+    def lr_schedule(step):
+        e = jnp.floor(step * 1.0 / lr_decay_steps)
+        return learning_rate * jnp.exp2(-e)
+
+    optim = opax.chain(
+        opax.add_decayed_weights(weight_decay),
+        opax.sgd(lr_schedule, momentum=0.9),
     ).init(agent.parameters())
+
     if os.path.isfile(ckpt_filename):
         print("Loading weights at", ckpt_filename)
         with open(ckpt_filename, "rb") as f:
@@ -237,7 +237,13 @@ def train(
         start_iter = 0
     rng_key = jax.random.PRNGKey(random_seed)
     shuffler = random.Random(random_seed)
-    buffer = Deque(maxlen=buffer_size)
+    devices = jax.local_devices()
+    num_devices = jax.local_device_count()
+
+    def _stack_and_reshape(*xs):
+        x = np.stack(xs)
+        x = np.reshape(x, (num_devices, -1) + x.shape[1:])
+        return x
 
     for iteration in range(start_iter, num_iterations):
         print(f"Iteration {iteration}")
@@ -247,32 +253,27 @@ def train(
             agent,
             env,
             rng_key_1,
-            batch_size,
+            selfplay_batch_size,
             num_self_plays_per_iteration,
             num_simulations_per_move,
-            temperature_decay,
         )
-        data = prepare_training_data(data)
-        buffer.extend(data)
-        data = list(buffer)
+        data = list(data)
         shuffler.shuffle(data)
-        N = len(data)
-        losses = []
         old_agent = jax.tree_map(lambda x: jnp.copy(x), agent)
-        agent = agent.train()
-        with click.progressbar(
-            range(0, N - batch_size, batch_size), label="  train agent"
-        ) as bar:
-            for i in bar:
-                batch = data[i : (i + batch_size)]
-                batch = jax.tree_map(lambda *xs: np.stack(xs), *batch)
+        agent, losses = agent.train(), []
+        agent, optim = jax.device_put_replicated((agent, optim), devices)
+        ids = range(0, len(data) - training_batch_size, training_batch_size)
+        with click.progressbar(ids, label="  train agent   ") as progressbar:
+            for idx in progressbar:
+                batch = data[idx : (idx + training_batch_size)]
+                batch = jax.tree_map(_stack_and_reshape, *batch)
                 agent, optim, loss = train_step(agent, optim, batch)
                 losses.append(loss)
 
         value_loss, policy_loss = zip(*losses)
-        value_loss = sum(value_loss).item() / len(value_loss)
-        policy_loss = sum(policy_loss).item() / len(policy_loss)
-        print(f"  train losses:  value {value_loss:.3f}  policy {policy_loss:.3f}")
+        value_loss = np.mean(sum(jax.device_get(value_loss))) / len(value_loss)
+        policy_loss = np.mean(sum(jax.device_get(policy_loss))) / len(policy_loss)
+        agent, optim = jax.tree_map(lambda x: x[0], (agent, optim))
         win_count1, draw_count1, loss_count1 = agent_vs_agent_multiple_games(
             agent.eval(), old_agent, env, rng_key_2
         )
@@ -280,11 +281,16 @@ def train(
             old_agent, agent.eval(), env, rng_key_3
         )
         print(
-            "  play against previous version: {} win - {} draw - {} loss".format(
+            "  evaluation      {} win - {} draw - {} loss".format(
                 win_count1 + win_count2,
                 draw_count1 + draw_count2,
                 loss_count1 + loss_count2,
             )
+        )
+        print(
+            f"  value loss {value_loss:.3f}"
+            f"  policy loss {policy_loss:.3f}"
+            f"  learning rate {optim[1][-1].learning_rate:.1e}"
         )
         # save agent's weights to disk
         with open(ckpt_filename, "wb") as f:

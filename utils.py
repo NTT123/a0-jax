@@ -1,6 +1,7 @@
 """Useful functions."""
 
 import importlib
+from functools import partial
 from typing import Tuple
 
 import chex
@@ -32,6 +33,7 @@ def reset_env(env: E) -> E:
     return env
 
 
+@jax.jit
 def env_step(env: E, action: chex.Array) -> Tuple[E, chex.Array]:
     """Execute one step in the enviroment."""
     env, reward = env.step(action)
@@ -50,3 +52,9 @@ def import_class(path: str) -> E:
     mod_path, class_name = names[:-1], names[-1]
     mod = importlib.import_module(".".join(mod_path))
     return getattr(mod, class_name)
+
+
+def select_tree(pred: jnp.ndarray, a, b):
+    """Selects a pytree based on the given predicate."""
+    assert pred.ndim == 0 and pred.dtype == jnp.bool_, "expected boolean scalar"
+    return jax.tree_map(partial(jax.lax.select, pred), a, b)

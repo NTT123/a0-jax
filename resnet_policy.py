@@ -39,13 +39,22 @@ class ResnetPolicyValueNet(pax.Module):
     """
 
     def __init__(
-        self, input_dims, num_actions: int, dim: int = 128, num_resblock: int = 5
+        self, input_dims, num_actions: int, dim: int = 64, num_resblock: int = 5
     ):
         super().__init__()
+        if len(input_dims) == 3:
+            num_input_channels = input_dims[-1]
+            input_dims = input_dims[:-1]
+            self.has_channel_dim = True
+        else:
+            num_input_channels = 1
+            self.has_channel_dim = False
 
         self.input_dims = input_dims
         self.num_actions = num_actions
-        self.backbone = pax.Sequential(pax.Conv2D(1, dim, 1), pax.BatchNorm2D(dim))
+        self.backbone = pax.Sequential(
+            pax.Conv2D(num_input_channels, dim, 1), pax.BatchNorm2D(dim)
+        )
         for _ in range(num_resblock):
             self.backbone >>= ResidualBlock(dim)
         self.action_head = pax.Sequential(
@@ -73,7 +82,8 @@ class ResnetPolicyValueNet(pax.Module):
         x = x.astype(jnp.float32)
         if not batched:
             x = x[None]  # add the batch dimension
-        x = x[..., None]  # add channel dimension
+        if not self.has_channel_dim:
+            x = x[..., None]  # add channel dimension
         x = self.backbone(x)
         action_logits = self.action_head(x)
         value = self.value_head(x)
@@ -81,3 +91,21 @@ class ResnetPolicyValueNet(pax.Module):
             return action_logits[:, 0, 0, :], value[:, 0, 0, 0]
         else:
             return action_logits[0, 0, 0, :], value[0, 0, 0, 0]
+
+
+class ResnetPolicyValueNet128(ResnetPolicyValueNet):
+    """Create a resnet of 128 channels, 5 blocks"""
+
+    def __init__(
+        self, input_dims, num_actions: int, dim: int = 128, num_resblock: int = 5
+    ):
+        super().__init__(input_dims, num_actions, dim, num_resblock)
+
+
+class ResnetPolicyValueNet256(ResnetPolicyValueNet):
+    """Create a resnet of 256 channels, 6 blocks"""
+
+    def __init__(
+        self, input_dims, num_actions: int, dim: int = 256, num_resblock: int = 6
+    ):
+        super().__init__(input_dims, num_actions, dim, num_resblock)

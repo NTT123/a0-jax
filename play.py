@@ -17,44 +17,40 @@ from tree_search import improve_policy_with_mcts, recurrent_fn
 from utils import env_step, import_class, replicate, reset_env
 
 
-def _apply_temperature(logits, temperature):
-    """Returns `logits / temperature`, supporting also temperature=0."""
-    # The max subtraction prevents +inf after dividing by a small temperature.
-    logits = logits - jnp.max(logits, keepdims=True, axis=-1)
-    tiny = jnp.finfo(logits.dtype).tiny
-    return logits / jnp.maximum(tiny, temperature)
-
-
-@partial(jax.jit, static_argnames=("temperature", "num_simulations", "enable_mcts"))
+@partial(
+    jax.jit,
+    static_argnames=("num_simulations", "enable_mcts", "random_action"),
+)
 def play_one_move(
     agent,
     env: Enviroment,
     rng_key: chex.Array,
     enable_mcts: bool = False,
     num_simulations: int = 1024,
-    temperature=0.2,
+    random_action: bool = True,
 ):
     """Play a move using agent's policy"""
     if enable_mcts:
         batched_env = replicate(env, 1)
+        rng_key, rng_key_1 = jax.random.split(rng_key)
         policy_output = improve_policy_with_mcts(
             agent,
             batched_env,
-            rng_key,
+            rng_key_1,
             rec_fn=recurrent_fn,
             num_simulations=num_simulations,
-            temperature=temperature,
         )
-        action = policy_output.action
-        action_weights = jnp.log(policy_output.action_weights)
+        action_weights = policy_output.action_weights[0]
         root_idx = policy_output.search_tree.ROOT_INDEX
         value = policy_output.search_tree.node_values[0, root_idx]
     else:
         action_logits, value = agent(env.canonical_observation())
-        action_logits_ = _apply_temperature(action_logits, temperature)
-        action_weights = jax.nn.softmax(action_logits_, axis=-1)
-        action = jax.random.categorical(rng_key, action_logits)
+        action_weights = jax.nn.softmax(action_logits, axis=-1)
 
+    if random_action:
+        action = jax.random.categorical(rng_key, jnp.log(action_weights), axis=-1)
+    else:
+        action = jnp.argmax(action_weights)
     return action, action_weights, value
 
 
@@ -65,16 +61,17 @@ def agent_vs_agent(
     rng_key: chex.Array,
     enable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
-    temperature: float = 0.2,
 ):
     """A game of agent1 vs agent2."""
 
     def cond_fn(state):
-        env, *_ = state
-        return env.is_terminated() == False
+        env, step = state[0], state[-1]
+        not_ended = env.is_terminated() == False
+        not_too_long = step <= env.max_num_steps()
+        return jnp.logical_and(not_ended, not_too_long)
 
     def loop_fn(state):
-        env, a1, a2, _, rng_key, turn = state
+        env, a1, a2, _, rng_key, turn, step = state
         rng_key_1, rng_key = jax.random.split(rng_key)
         action, _, _ = play_one_move(
             a1,
@@ -82,18 +79,25 @@ def agent_vs_agent(
             rng_key_1,
             enable_mcts=enable_mcts,
             num_simulations=num_simulations_per_move,
-            temperature=temperature,
         )
         env, reward = env_step(env, action)
-        state = (env, a2, a1, turn * reward, rng_key, -turn)
+        state = (env, a2, a1, turn * reward, rng_key, -turn, step + 1)
         return state
 
-    state = (reset_env(env), agent1, agent2, jnp.array(0), rng_key, jnp.array(1))
+    state = (
+        reset_env(env),
+        agent1,
+        agent2,
+        jnp.array(0),
+        rng_key,
+        jnp.array(1),
+        jnp.array(1),
+    )
     state = jax.lax.while_loop(cond_fn, loop_fn, state)
     return state[3]
 
 
-@partial(jax.jit, static_argnums=(4, 5, 6, 7))
+@partial(jax.jit, static_argnums=(4, 5, 6))
 def agent_vs_agent_multiple_games(
     agent1,
     agent2,
@@ -101,7 +105,6 @@ def agent_vs_agent_multiple_games(
     rng_key,
     enable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
-    temperature: float = 0.2,
     num_games: int = 128,
 ):
     """Fast agent vs agent evaluation."""
@@ -110,7 +113,6 @@ def agent_vs_agent_multiple_games(
     avsa = partial(
         agent_vs_agent,
         enable_mcts=enable_mcts,
-        temperature=temperature,
         num_simulations_per_move=num_simulations_per_move,
     )
     batched_avsa = jax.vmap(avsa, in_axes=(None, None, 0, 0))
@@ -128,7 +130,6 @@ def human_vs_agent(
     human_first: bool = True,
     enable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
-    temperature: float = 0.2,
 ):
     """A game of human vs agent."""
     env = reset_env(env)
@@ -151,15 +152,16 @@ def human_vs_agent(
                 rng_key_1,
                 enable_mcts=enable_mcts,
                 num_simulations=num_simulations_per_move,
-                temperature=temperature,
+                random_action=False,
             )
             print("#  A(s) =", action_weights)
             print("#  V(s) =", value)
-            env, reward = env_step(env, action.item())
+            env, reward = env_step(env, action)
             print(f"#  Agent selected action {action}, got reward {reward}")
         else:
-            action = int(input("> "))
-            env, reward = env_step(env, action)
+            action = input("> ")
+            action = env.parse_action(action)
+            env, reward = env_step(env, jnp.array(action, dtype=jnp.int32))
             print(f"#  Human selected action {action}, got reward {reward}")
         if env.is_terminated().item():
             break

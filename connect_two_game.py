@@ -4,10 +4,10 @@ from typing import Tuple
 
 import chex
 import jax.numpy as jnp
-import jmp
 import pax
 
 from env import Enviroment
+from utils import select_tree
 
 
 class Connect2WinChecker(pax.Module):
@@ -72,7 +72,7 @@ class Connect2Game(Enviroment):
         """
         invalid_move = self.board[action] != 0
         board_ = self.board.at[action].set(self.who_play)
-        self.board = jmp.select_tree(self.terminated, self.board, board_)
+        self.board = select_tree(self.terminated, self.board, board_)
         self.winner = self.winner_checker(self.board)
         reward = self.winner * self.who_play
         self.who_play = -self.who_play
@@ -100,7 +100,7 @@ class Connect2Game(Enviroment):
         return self.board
 
     def canonical_observation(self) -> chex.Array:
-        return self.board * self.who_play[..., None]
+        return self.board * self.who_play
 
     def is_terminated(self):
         return self.terminated

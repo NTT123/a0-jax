@@ -4,11 +4,11 @@ from typing import Tuple
 
 import chex
 import jax.numpy as jnp
-import jmp
 import numpy as np
 import pax
 
 from env import Enviroment
+from utils import select_tree
 
 
 class Connect4WinChecker(pax.Module):
@@ -96,7 +96,7 @@ class Connect4Game(Enviroment):
         row_idx = self.col_counts[action]
         invalid_move = row_idx >= self.num_rows
         board_ = self.board.at[row_idx, action].set(self.who_play)
-        self.board = jmp.select_tree(self.terminated, self.board, board_)
+        self.board = select_tree(self.terminated, self.board, board_)
         self.winner = self.winner_checker(self.board)
         reward = self.winner * self.who_play
         # increase column counter
@@ -131,7 +131,7 @@ class Connect4Game(Enviroment):
         return self.board
 
     def canonical_observation(self) -> chex.Array:
-        return self.board * self.who_play[..., None, None]
+        return self.board * self.who_play
 
     def is_terminated(self):
         return self.terminated

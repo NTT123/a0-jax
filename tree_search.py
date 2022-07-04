@@ -2,6 +2,8 @@
 Monte Carlo tree search.
 """
 
+from functools import partial
+
 import chex
 import jax
 import jax.numpy as jnp
@@ -17,11 +19,8 @@ def recurrent_fn(params, rng_key: chex.Array, action: chex.Array, embedding):
     agent = params
     env = embedding
     env, reward = jax.vmap(env_step)(env, action)
-    state = env.canonical_observation()
+    state = jax.vmap(lambda e: e.canonical_observation())(env)
     prior_logits, value = jax.vmap(lambda a, s: a(s), in_axes=(None, 0))(agent, state)
-    invalid_actions = env.invalid_actions()
-    assert invalid_actions.shape == prior_logits.shape
-    prior_logits = jnp.where(invalid_actions, float("-inf"), prior_logits)
     discount = -1.0 * jnp.ones_like(reward)
     terminated = env.is_terminated()
     assert value.shape == terminated.shape
@@ -43,14 +42,13 @@ def improve_policy_with_mcts(
     rng_key: chex.Array,
     rec_fn,
     num_simulations: int,
-    temperature: float = 1.0,
 ):
     """Improve agent policy using MCTS.
 
     Returns:
         An improved policy.
     """
-    state = env.canonical_observation()
+    state = jax.vmap(lambda e: e.canonical_observation())(env)
     _, (prior_logits, value) = batched_policy(agent, state)
     root = mctx.RootFnOutput(prior_logits=prior_logits, value=value, embedding=env)
     policy_output = mctx.gumbel_muzero_policy(
@@ -59,8 +57,13 @@ def improve_policy_with_mcts(
         root=root,
         recurrent_fn=rec_fn,
         num_simulations=num_simulations,
-        invalid_actions=env.invalid_actions(),
-        qtransform=mctx.qtransform_completed_by_mix_value,
+        invalid_actions=jax.vmap(lambda e: e.invalid_actions())(env),
+        qtransform=partial(
+            mctx.qtransform_completed_by_mix_value,
+            value_scale=0.1,
+            maxvisit_init=50,
+            rescale_values=False,
+        ),
         gumbel_scale=1.0,
     )
     return policy_output
