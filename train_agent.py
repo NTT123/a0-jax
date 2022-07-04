@@ -8,8 +8,6 @@ import os
 import pickle
 import random
 from functools import partial
-from pathlib import Path
-from typing import Deque
 
 import chex
 import click

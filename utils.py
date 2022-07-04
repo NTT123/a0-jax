@@ -33,6 +33,7 @@ def reset_env(env: E) -> E:
     return env
 
 
+@jax.jit
 def env_step(env: E, action: chex.Array) -> Tuple[E, chex.Array]:
     """Execute one step in the enviroment."""
     env, reward = env.step(action)

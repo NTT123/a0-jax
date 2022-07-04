@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Go game</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+</head>
+
+<body>
+    <p style="user-select: none; font-family: sans-serif;">
+        Try to put as many stones on the board as possible without repeating previous board positions.
+    </p>
+    <p style="user-select: none;">
+        <button type="button" style="width:80px; height:25px;" id="ai-first">AI FIRST</button>
+        <button type="button" style="width:80px; height:25px;" id="pass_btn">PASS</button>
+        <button type="button" style="width:80px; height:25px;" id="reset_btn">RESET</button>
+        <code id="msg"></code>
+    </p>
+    <canvas id="game-board" width="600px" height="600px"></canvas>
+    <script>
+        function BoardGame(num_rows, num_cols) {
+            this.audio = new Audio('stone.ogg');
+            this.num_cols = num_cols;
+            this.num_rows = num_rows;
+            var this_ = this;
+            this.canvas_ctx = document.getElementById("game-board").getContext("2d");
+            this.board_scale = 40;
+            document.getElementById("game-board").height = this.board_scale * (num_rows + 1);
+            document.getElementById("game-board").width = this.board_scale * (num_cols + 1);
+            this.canvas_ctx.scale(this.board_scale, this.board_scale);
+            this.canvas_ctx.translate(1, 1);
+            this.reset = function () {
+                this.board = new Array(num_rows * num_cols);
+                for (let i = 0; i < this.board.length; i++) this.board[i] = 0;
+                this.mouse_x = -1;
+                this.mouse_y = -1;
+                this.who_play = 1;
+                this.ai_player = -1;
+                this.game_ended = false;
+                this.count = 0;
+                this.newest_stone = -1;
+                document.getElementById('msg').innerText = '';
+            };
+
+            this.reset();
+            this.get = function (row, col) {
+                return this.board[this.num_cols * row + col];
+            }
+            this.submit_board = async function (human_action) {
+                const settings = {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ "human_action": human_action }),
+                };
+                try {
+                    const fetchResponse = await fetch(window.location.pathname + '/move', settings);
+                    const data = await fetchResponse.json();
+                    return data;
+                } catch (e) {
+                    document.getElementById('msg').innerText = "Error! Retrying...";
+                    const data = await this_.submit_board(human_action);
+                    return data;
+                }
+            };
+            this.end_game = function () {
+                this.game_ended = true;
+                // fetch(window.location.pathname + '/reset', {method: 'GET'}).then(function() {});
+            };
+            this.ai_play = function (human_action) {
+                document.getElementById('msg').innerText = 'waiting...';
+                this_.submit_board(human_action).then(
+                    function (info) {
+                        document.body.style.cursor = 'default';
+                        let i = info["action"];
+                        this_.newest_stone = i;
+                        let board = info["current_board"]
+                        let terminated = info["terminated"]
+                        for (let i = 0; i < this_.board.length; i++)
+                            this_.board[i] = board[i];
+                        this_.audio.play();
+                        this_.who_play = -this_.who_play;
+                        this_.render();
+                        document.getElementById('msg').innerText = info["msg"];
+                        if (terminated == true) {
+                            this_.end_game();
+                        }
+                    }
+                ).catch(function (e) { });
+            };
+            document.getElementById("ai-first").onclick = function () {
+                this_.reset();
+                this_.ai_player = 1;
+                this_.ai_play(-1);
+            };
+            document.getElementById("pass_btn").onclick = function () {
+                if (this_.game_ended == false) {
+                    if (this_.who_play == this_.ai_player) return false;
+                    this_.newest_stone = -1;
+                    this_.count = this_.count + 1;
+                    this_.audio.play();
+                    this_.who_play = -this_.who_play;
+                    this_.render();
+                    // pass action = size of the board
+                    this_.ai_play(this_.num_cols * this_.num_rows);
+                }
+            };
+
+            document.getElementById("reset_btn").onclick = function () {
+                this_.reset();
+                fetch(window.location.pathname + '/reset', { method: 'GET' }).then(function () {
+                    this_.render();
+                });
+            };
+
+            document.getElementById("game-board").addEventListener('click', function (e) {
+                var rect = this.getBoundingClientRect();
+                var x = e.clientX - rect.left;
+                var y = e.clientY - rect.top;
+                var loc_x = Math.floor(x / this_.board_scale - 0.5);
+                var loc_y = Math.floor(y / this_.board_scale - 0.5);
+                this_.mouse_x = loc_x;
+                this_.mouse_y = loc_y;
+
+                if (
+                    this_.mouse_x >= 0 &&
+                    this_.mouse_y >= 0 &&
+                    this_.mouse_x < this_.num_cols &&
+                    this_.mouse_y < this_.num_rows &&
+                    this_.game_ended == false
+                ) {
+                    if (this_.who_play == this_.ai_player) return false;
+                    let i = this_.mouse_y * this_.num_cols + this_.mouse_x;
+                    if (this_.board[i] != 0) return false;
+                    this_.board[i] = this_.who_play;
+                    this_.newest_stone = i;
+                    this_.count = this_.count + 1;
+                    this_.audio.play();
+                    this_.who_play = -this_.who_play;
+                    this_.render();
+                    this_.ai_play(i);
+                }
+            }, false);
+            this.draw_stone = function (x, y, color, new_stone) {
+                let ctx = this.canvas_ctx;
+
+                ctx.beginPath();
+                ctx.arc(x, y, 0.50, 0, 2 * Math.PI, false);
+                ctx.fillStyle = "#b8891c";
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(x, y, 0.44, 0, 2 * Math.PI, false);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.lineWidth = 0.02;
+                ctx.strokeStyle = "black";
+                ctx.stroke();
+
+                if (new_stone) {
+                    ctx.beginPath();
+                    ctx.arc(x, y, 0.1, 0, 2 * Math.PI, false);
+                    ctx.fillStyle = "red";
+                    ctx.fill();
+                }
+            };
+            this.render = function () {
+                let ctx = this.canvas_ctx;
+                ctx.fillStyle = "#b8891c";
+                ctx.fillRect(-1, -1, num_cols + 1, num_rows + 1);
+                ctx.fillStyle = "#b8891c";
+                ctx.fillRect(0, 0, num_cols - 1, num_rows - 1);
+                ctx.lineWidth = 0.1 / 5;
+                for (let i = 0; i < this.num_cols; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i, 0);
+                    ctx.lineTo(i, this.num_rows - 1);
+                    ctx.strokeStyle = "black";
+                    ctx.stroke();
+                }
+                for (let i = 0; i < this.num_rows; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, i);
+                    ctx.lineTo(this.num_cols - 1, i);
+                    ctx.strokeStyle = "black";
+                    ctx.stroke();
+                }
+                for (let i = 0; i < this.board.length; i++) {
+                    let x = i % this.num_cols;
+                    let y = Math.floor(i / this.num_cols);
+                    if (this.board[i] == 0) continue;
+                    let color = (this.board[i] == 1) ? "#3a352d" : "#f0ece4";
+                    this.draw_stone(x, y, color, i == this.newest_stone);
+                }
+            };
+            document.getElementById("game-board").onmousemove = function (e) {
+                var rect = this.getBoundingClientRect();
+                var x = e.clientX - rect.left;
+                var y = e.clientY - rect.top;
+                var loc_x = Math.floor(x / this_.board_scale - 0.5);
+                var loc_y = Math.floor(y / this_.board_scale - 0.5);
+                this_.mouse_x = loc_x;
+                this_.mouse_y = loc_y;
+            };
+
+        };
+        document.addEventListener("DOMContentLoaded", function (event) {
+            game = new BoardGame(9, 9);
+            game.render();
+        });
+    </script>
+</body>
+
+</html>
