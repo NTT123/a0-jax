@@ -140,7 +140,9 @@ class Connect4Game(Enviroment):
         return self.num_cols * self.num_rows
 
     def symmetries(self, state, action_weights):
-        return [(state, action_weights), (np.flip(state), np.flip(action_weights))]
+        out = [(state, action_weights)]
+        out.append((np.flip(state, axis=1), np.flip(action_weights)))
+        return out
 
 
 if __name__ == "__main__":
