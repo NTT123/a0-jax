@@ -106,7 +106,7 @@ def collect_batched_self_play_data(
     return self_play_data
 
 
-def prepare_training_data(data: MoveOutput):
+def prepare_training_data(data: MoveOutput, env):
     """Preprocess the data collected from self-play.
 
     1. remove states after the enviroment is terminated.
@@ -125,13 +125,16 @@ def prepare_training_data(data: MoveOutput):
             if is_terminated[idx]:
                 continue
             value = reward[idx] if value is None else -value
-            buffer.append(
-                TrainingExample(
-                    state=np.copy(state[idx]),
-                    action_weights=np.copy(action_weights[idx]),
-                    value=np.array(value, dtype=np.float32),
+            s = np.copy(state[idx])
+            a = np.copy(action_weights[idx])
+            for augmented_s, augmented_a in env.symmetries(s, a):
+                buffer.append(
+                    TrainingExample(
+                        state=augmented_s,
+                        action_weights=augmented_a,
+                        value=np.array(value, dtype=np.float32),
+                    )
                 )
-            )
 
     return buffer
 
@@ -163,7 +166,7 @@ def collect_self_play_data(
             )
             batch = jax.device_get(batch)
             batch = jax.tree_map(lambda x: x.reshape((-1, *x.shape[2:])), batch)
-            data.extend(prepare_training_data(batch))
+            data.extend(prepare_training_data(batch, env=env))
     return data
 
 

@@ -134,6 +134,19 @@ class CaroGame(Enviroment):
     def max_num_steps(self) -> int:
         return self.num_cols * self.num_rows
 
+    def symmetries(self, state, action_weights):
+        action = action_weights.reshape((self.num_rows, self.num_cols))
+        out = []
+        for rotate in range(4):
+            rotated_state = np.rot90(state, rotate, axes=(0, 1))
+            rotated_action = np.rot90(action, rotate, axes=(0, 1))
+            out.append((rotated_state, rotated_action.reshape((-1,))))
+
+            flipped_state = np.fliplr(rotated_state)
+            flipped_action = np.fliplr(rotated_action)
+            out.append((flipped_state, flipped_action.reshape((-1,))))
+        return out
+
 
 if __name__ == "__main__":
     game = CaroGame()

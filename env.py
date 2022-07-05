@@ -52,3 +52,10 @@ class Enviroment(pax.Module):
     def parse_action(self, action_str: str) -> int:
         """Parse a string action and return a number."""
         return int(action_str)
+
+    def symmetries(self, state, action_weights):
+        """The default symmetry group is the identity.
+
+        We use this method for data augmentation in training.
+        """
+        return [(state, action_weights)]

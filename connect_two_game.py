@@ -4,6 +4,7 @@ from typing import Tuple
 
 import chex
 import jax.numpy as jnp
+import numpy as np
 import pax
 
 from env import Enviroment
@@ -107,3 +108,6 @@ class Connect2Game(Enviroment):
 
     def max_num_steps(self) -> int:
         return 4
+
+    def symmetries(self, state, action_weights):
+        return [(state, action_weights), (np.flip(state), np.flip(action_weights))]

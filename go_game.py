@@ -7,6 +7,7 @@ Reference: https://github.com/pasky/michi/blob/master/michi.py
 import chex
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pax
 
 from dsu import DSU
@@ -183,7 +184,7 @@ class GoBoard(Enviroment):
     def observation(self):
         turn = jnp.ones_like(self.board)[None]
         board = jnp.concatenate((self.recent_boards, turn))
-        return jnp.swapaxes(board, 0, -1)
+        return jnp.moveaxis(board, 0, -1)
 
     def canonical_observation(self):
         return self.observation() * self.turn
@@ -236,6 +237,27 @@ class GoBoard(Enviroment):
         i = ord(action_str[0]) - ord("a")
         j = ord(action_str[1]) - ord("a")
         return i * self.board_size + j
+
+    def symmetries(self, state, action_weights):
+        N = self.board_size
+        action_no_pass = action_weights[:-1].reshape((N, N))
+        pass_move = action_weights[-1:]
+        out = []
+        for rotate in range(4):
+            rotated_state = np.rot90(state, rotate, axes=(0, 1))
+            rotated_action = np.rot90(action_no_pass, rotate, axes=(0, 1))
+            rotated_action_pass = np.concatenate(
+                (rotated_action.reshape((-1,)), pass_move)
+            )
+            out.append((rotated_state, rotated_action_pass))
+
+            flipped_state = np.fliplr(rotated_state)
+            flipped_action = np.fliplr(rotated_action)
+            flipped_action_pass = np.concatenate(
+                (flipped_action.reshape((-1,)), pass_move)
+            )
+            out.append((flipped_state, flipped_action_pass))
+        return out
 
 
 _env_step = jax.jit(pax.pure(lambda e, a: e.step(a)))

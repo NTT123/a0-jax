@@ -139,6 +139,9 @@ class Connect4Game(Enviroment):
     def max_num_steps(self) -> int:
         return self.num_cols * self.num_rows
 
+    def symmetries(self, state, action_weights):
+        return [(state, action_weights), (np.flip(state), np.flip(action_weights))]
+
 
 if __name__ == "__main__":
     game = Connect4Game()
