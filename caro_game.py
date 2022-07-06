@@ -164,21 +164,21 @@ class CaroGame(Enviroment):
         return a * self.num_cols + b
 
 
-class CaroGame11x11(Enviroment):
+class CaroGame11x11(CaroGame):
     """Caro game with board size 11x11"""
 
     def __init__(self):
         super().__init__(num_cols=11, num_rows=11, pro_rule_dist=3)
 
 
-class CaroGame13x13(Enviroment):
+class CaroGame13x13(CaroGame):
     """Caro game with board size 13x13"""
 
     def __init__(self):
         super().__init__(num_cols=13, num_rows=13, pro_rule_dist=3)
 
 
-class CaroGame15x15(Enviroment):
+class CaroGame15x15(CaroGame):
     """Caro game with board size 15x15"""
 
     def __init__(self):
