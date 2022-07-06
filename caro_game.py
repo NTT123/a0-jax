@@ -111,10 +111,6 @@ class CaroGame(Enviroment):
         reward_ = jnp.where(invalid_move, -1.0, reward_)
         return self, reward_
 
-    def step_xy(self, x: int, y: int):
-        """step function with 2d actions."""
-        return self.step(x * self.num_cols + y)
-
     def render(self) -> None:
         """Render the game on screen."""
         board = self.observation()
@@ -161,15 +157,41 @@ class CaroGame(Enviroment):
             out.append((flipped_state, flipped_action.reshape((-1,))))
         return out
 
+    def parse_action(self, action_str: str) -> int:
+        a, b = list(action_str.strip().replace(" ", ""))
+        a = ord(a) - ord("a")
+        b = ord(b) - ord("a")
+        return a * self.num_cols + b
+
+
+class CaroGame11x11(Enviroment):
+    """Caro game with board size 11x11"""
+
+    def __init__(self):
+        super().__init__(num_cols=11, num_rows=11, pro_rule_dist=3)
+
+
+class CaroGame13x13(Enviroment):
+    """Caro game with board size 13x13"""
+
+    def __init__(self):
+        super().__init__(num_cols=13, num_rows=13, pro_rule_dist=3)
+
+
+class CaroGame15x15(Enviroment):
+    """Caro game with board size 15x15"""
+
+    def __init__(self):
+        super().__init__(num_cols=15, num_rows=15, pro_rule_dist=4)
+
 
 if __name__ == "__main__":
     game = CaroGame()
     while not game.is_terminated().item():
         game.render()
         i = input("> ")
-        a, b = list(i.strip().replace(" ", ""))
-        a, b = ord(a) - ord("a"), ord(b) - ord("a")
-        game, reward = game.step_xy(a, b)
+        action = game.parse_action(i)
+        game, reward = game.step(action)
 
     print("Final board")
     game.render()

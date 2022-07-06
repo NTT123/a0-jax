@@ -33,6 +33,23 @@ python train_agent.py \
 
 A trained Connect-4 agent is running at https://huggingface.co/spaces/ntt123/Connect-4-Game. We use tensorflow.js to run the policy on the browser.
 
+### Caro (Gomoku) game
+
+```sh
+TF_CPP_MIN_LOG_LEVEL=2 \
+python3 train_agent.py \
+    --game-class="caro_game.CaroGame" \
+    --agent-class="resnet_policy.ResnetPolicyValueNet128" \
+    --selfplay-batch-size=1024 \
+    --training-batch-size=1024 \
+    --num-simulations-per-move=32 \
+    --num-self-plays-per-iteration=102400 \
+    --learning-rate=1e-2 \
+    --random-seed=42 \
+    --ckpt-filename="./caro_agent_9x9_128.ckpt" \
+    --num-iterations=100 \
+    --lr-decay-steps=500000
+```
 
 ### Go game
 
@@ -40,16 +57,16 @@ A trained Connect-4 agent is running at https://huggingface.co/spaces/ntt123/Con
 TF_CPP_MIN_LOG_LEVEL=2 \
 python3 train_agent.py \
     --game-class="go_game.GoBoard9x9" \
-    --agent-class="resnet_policy.ResnetPolicyValueNet256" \
+    --agent-class="resnet_policy.ResnetPolicyValueNet128" \
     --selfplay-batch-size=1024 \
     --training-batch-size=1024 \
     --num-simulations-per-move=32 \
     --num-self-plays-per-iteration=102400 \
-    --learning-rate=1e-3 \
+    --learning-rate=1e-2 \
     --random-seed=42 \
-    --ckpt-filename="./go_agent_9x9_256.ckpt" \
+    --ckpt-filename="./go_agent_9x9_128.ckpt" \
     --num-iterations=200 \
-    --lr-decay-steps=200000
+    --lr-decay-steps=1000000
 ```
 
 A live Go agent is running at https://go.ntt123.repl.co.
