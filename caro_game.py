@@ -57,7 +57,7 @@ class CaroGame(Enviroment):
     def __init__(self, num_cols: int = 9, num_rows: int = 9, pro_rule_dist: int = 3):
         super().__init__()
         assert num_cols % 2 == 1 and num_rows % 2 == 1
-        assert pro_rule_dist in [3, 5]
+        assert pro_rule_dist in [3, 4]
         self.pro_rule_dist = pro_rule_dist
         self.num_rows = num_rows
         self.num_cols = num_cols
