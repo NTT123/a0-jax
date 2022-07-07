@@ -31,7 +31,7 @@ python train_agent.py \
     --lr-decay-steps=200000
 ```
 
-A trained Connect-4 agent is running at https://huggingface.co/spaces/ntt123/Connect-4-Game. We use tensorflow.js to run the policy on the browser.
+A live Connect-4 agent is running at https://huggingface.co/spaces/ntt123/Connect-4-Game. We use tensorflow.js to run the policy on the browser.
 
 ### Caro (Gomoku) game
 
@@ -50,6 +50,9 @@ python3 train_agent.py \
     --num-iterations=100 \
     --lr-decay-steps=500000
 ```
+
+A live Caro agent is running at https://caro.ntt123.repl.co.
+
 
 ### Go game
 
@@ -87,3 +90,8 @@ python plot_search_tree.py
 ```sh
 python play.py
 ```
+
+
+## TPU sponsor
+
+Agents in the above demos are trained on Google TPUs sponsored by Google under the [TPU Research Cloud program](https://sites.research.google/trc/about/). 

@@ -298,8 +298,8 @@ def train(
         # save agent's weights to disk
         with open(ckpt_filename, "wb") as f:
             dic = {
-                "agent": agent.state_dict(),
-                "optim": optim.state_dict(),
+                "agent": jax.device_get(agent.state_dict()),
+                "optim": jax.device_get(optim.state_dict()),
                 "iter": iteration,
             }
             pickle.dump(dic, f)
