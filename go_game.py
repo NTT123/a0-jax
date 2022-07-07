@@ -315,6 +315,15 @@ class GoBoard9x9(GoBoard):
         )
 
 
+class GoBoard13x13(GoBoard):
+    """Create a 13x13 board"""
+
+    def __init__(self, num_recent_positions: int = 8):
+        super().__init__(
+            board_size=13, komi=6.5, num_recent_positions=num_recent_positions
+        )
+
+
 if __name__ == "__main__":
     game = GoBoard(9)
     while game.done.item() is False:
