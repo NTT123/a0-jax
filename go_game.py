@@ -46,7 +46,10 @@ class GoBoard(Enviroment):
         self.recent_boards = jnp.stack([self.board] * self.num_recent_positions)
         self.prev_pass_move = jnp.array(False, dtype=jnp.bool_)
         self.turn = jnp.array(1, dtype=jnp.int8)
-        self.dsu = DSU(self.board_size**2)
+        # we call `dsu.get_all_roots` for every 4 dsu updates,
+        # this allows dsu to use `for` loop instead of `while` loop.
+        # It improves performance on GPU (~2x speedup).
+        self.dsu = DSU(self.board_size**2, get_all_roots_freq=4)
         self.done = jnp.array(False, dtype=jnp.bool_)
         self.count = jnp.array(0, dtype=jnp.int32)
 
