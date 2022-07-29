@@ -1,5 +1,5 @@
 # a0-jax
-AlphaZero in JAX using PAX library.
+AlphaZero in JAX using deepmind [mctx](https://github.com/deepmind/mctx) library.
 
 ```sh
 pip install -r requirements.txt
