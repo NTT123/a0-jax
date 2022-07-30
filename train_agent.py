@@ -165,7 +165,7 @@ def collect_self_play_data(
                 num_simulations_per_move,
             )
             batch = jax.device_get(batch)
-            batch = jax.tree_map(lambda x: x.reshape((-1, *x.shape[2:])), batch)
+            batch = jax.tree_util.tree_map(lambda x: x.reshape((-1, *x.shape[2:])), batch)
             data.extend(prepare_training_data(batch, env=env))
     return data
 
@@ -262,21 +262,21 @@ def train(
         )
         data = list(data)
         shuffler.shuffle(data)
-        old_agent = jax.tree_map(lambda x: jnp.copy(x), agent)
+        old_agent = jax.tree_util.tree_map(lambda x: jnp.copy(x), agent)
         agent, losses = agent.train(), []
         agent, optim = jax.device_put_replicated((agent, optim), devices)
         ids = range(0, len(data) - training_batch_size, training_batch_size)
         with click.progressbar(ids, label="  train agent   ") as progressbar:
             for idx in progressbar:
                 batch = data[idx : (idx + training_batch_size)]
-                batch = jax.tree_map(_stack_and_reshape, *batch)
+                batch = jax.tree_util.tree_map(_stack_and_reshape, *batch)
                 agent, optim, loss = train_step(agent, optim, batch)
                 losses.append(loss)
 
         value_loss, policy_loss = zip(*losses)
         value_loss = np.mean(sum(jax.device_get(value_loss))) / len(value_loss)
         policy_loss = np.mean(sum(jax.device_get(policy_loss))) / len(policy_loss)
-        agent, optim = jax.tree_map(lambda x: x[0], (agent, optim))
+        agent, optim = jax.tree_util.tree_map(lambda x: x[0], (agent, optim))
         win_count1, draw_count1, loss_count1 = agent_vs_agent_multiple_games(
             agent.eval(), old_agent, env, rng_key_2
         )

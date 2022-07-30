@@ -48,8 +48,8 @@ def main(
 
     @partial(jax2tf.convert, with_gradient=True, enable_xla=False)
     def tf_forward(leaves, x):
-        _, treedef = jax.tree_flatten(agent)
-        agent_ = jax.tree_unflatten(treedef, leaves)
+        _, treedef = jax.tree_util.tree_flatten(agent)
+        agent_ = jax.tree_util.tree_unflatten(treedef, leaves)
         y = agent_(x)
         return y
 

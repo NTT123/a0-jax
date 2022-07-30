@@ -23,7 +23,7 @@ def batched_policy(agent, states):
 
 def replicate(value: chex.ArrayTree, repeat: int) -> chex.ArrayTree:
     """Replicate along the first axis."""
-    return jax.tree_map(lambda x: jnp.stack([x] * repeat), value)
+    return jax.tree_util.tree_map(lambda x: jnp.stack([x] * repeat), value)
 
 
 @pax.pure
@@ -57,4 +57,4 @@ def import_class(path: str) -> E:
 def select_tree(pred: jnp.ndarray, a, b):
     """Selects a pytree based on the given predicate."""
     assert pred.ndim == 0 and pred.dtype == jnp.bool_, "expected boolean scalar"
-    return jax.tree_map(partial(jax.lax.select, pred), a, b)
+    return jax.tree_util.tree_map(partial(jax.lax.select, pred), a, b)
