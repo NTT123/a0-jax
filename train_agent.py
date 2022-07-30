@@ -165,7 +165,9 @@ def collect_self_play_data(
                 num_simulations_per_move,
             )
             batch = jax.device_get(batch)
-            batch = jax.tree_util.tree_map(lambda x: x.reshape((-1, *x.shape[2:])), batch)
+            batch = jax.tree_util.tree_map(
+                lambda x: x.reshape((-1, *x.shape[2:])), batch
+            )
             data.extend(prepare_training_data(batch, env=env))
     return data
 
