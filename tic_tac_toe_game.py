@@ -40,6 +40,7 @@ class TicTacToeWinnerChecker(pax.Module):
         weight[0, :, :, 0] = 1
         weight[:, 0, :, 1] = 1
         weight[-1, :, :, 2] = 1
+        weight[:, -1, :, 3] = 1
         for i in range(3):
             weight[i, i, :, 4] = 1
             weight[i, 2 - i, :, 5] = 1
