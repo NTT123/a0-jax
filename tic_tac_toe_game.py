@@ -35,7 +35,7 @@ class TicTacToeWinnerChecker(pax.Module):
 
     def __init__(self):
         super().__init__()
-        conv = pax.Conv2D(1, 6, 3, padding="VALID")
+        conv = pax.Conv2D(1, 8, 3, padding="VALID")
         weight = np.zeros((3, 3, 1, 8), dtype=np.float32)
         weight[0, :, :, 0] = 1
         weight[:, 0, :, 1] = 1
