@@ -19,18 +19,14 @@ class TicTacToeWinnerChecker(pax.Module):
 
     Filters to scan for winning patterns:
 
-    1 0 0    1 1 1    1 0 0
-    1 0 0    0 0 0    0 1 0
-    1 0 0    0 0 0    0 0 1
+    1 0 0    0 1 0    0 0 1    1 0 0
+    1 0 0    0 1 0    0 0 1    0 1 0
+    1 0 0    0 1 0    0 0 1    0 0 1
 
-    0 0 1    0 0 0    0 0 1
-    0 0 1    0 0 0    0 1 0
-    0 0 1    1 1 1    1 0 0
-    
-    0 1 0    0 0 0
-    0 1 0    1 1 1
-    0 1 0    0 0 0
-    
+    1 1 1    0 0 0    0 0 0    0 0 1
+    0 0 0    1 1 1    0 0 0    0 1 0
+    0 0 0    0 0 0    1 1 1    1 0 0
+
     """
 
     def __init__(self):
@@ -38,14 +34,14 @@ class TicTacToeWinnerChecker(pax.Module):
         conv = pax.Conv2D(1, 8, 3, padding="VALID")
         weight = np.zeros((3, 3, 1, 8), dtype=np.float32)
         weight[0, :, :, 0] = 1
-        weight[:, 0, :, 1] = 1
-        weight[-1, :, :, 2] = 1
-        weight[:, -1, :, 3] = 1
+        weight[1, :, :, 1] = 1
+        weight[2, :, :, 2] = 1
+        weight[:, 0, :, 3] = 1
+        weight[:, 1, :, 4] = 1
+        weight[:, 2, :, 5] = 1
         for i in range(3):
-            weight[i, i, :, 4] = 1
-            weight[i, 2 - i, :, 5] = 1
-            weight[i,i, :, 7] = 1
-        weight[:, 1, :,6] = 1
+            weight[i, i, :, 6] = 1
+            weight[i, 2 - i, :, 7] = 1
         assert weight.shape == conv.weight.shape
         self.conv = conv.replace(weight=weight)
 
