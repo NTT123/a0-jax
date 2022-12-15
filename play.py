@@ -108,8 +108,8 @@ def agent_vs_agent_multiple_games(
     num_games: int = 128,
 ):
     """Fast agent vs agent evaluation."""
-    rng_keys = jax.random.split(rng_key, num_games)
-    rng_keys = jnp.stack(rng_keys, axis=0)
+    _rng_keys = jax.random.split(rng_key, num_games)
+    rng_keys = jnp.stack(_rng_keys, axis=0)  # type: ignore
     avsa = partial(
         agent_vs_agent,
         enable_mcts=enable_mcts,

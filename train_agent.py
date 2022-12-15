@@ -121,11 +121,14 @@ def prepare_training_data(data: MoveOutput, env: Enviroment):
         action_weights = data.action_weights[i]
         reward = data.reward[i]
         L = len(is_terminated)
-        value: Optional[float] = None
+        value: Optional[chex.Array] = None
         for idx in reversed(range(L)):
             if is_terminated[idx]:
                 continue
-            value = reward[idx] if value is None else -value
+            if value is None:
+                value = reward[idx]
+            else:
+                value = -value
             s = np.copy(state[idx])
             a = np.copy(action_weights[idx])
             for augmented_s, augmented_a in env.symmetries(s, a):
@@ -152,8 +155,8 @@ def collect_self_play_data(
     N = data_size // batch_size
     devices = jax.local_devices()
     num_devices = len(devices)
-    rng_keys = jax.random.split(rng_key, N * num_devices)
-    rng_keys = jnp.stack(rng_keys).reshape((N, num_devices, -1))
+    _rng_keys = jax.random.split(rng_key, N * num_devices)
+    rng_keys = jnp.stack(_rng_keys).reshape((N, num_devices, -1))  # type: ignore
     data = []
 
     with click.progressbar(range(N), label="  self play     ") as bar:
