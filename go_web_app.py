@@ -4,6 +4,7 @@ import pickle
 import random
 from argparse import ArgumentParser
 from collections import defaultdict
+from typing import Any, Dict
 
 import jax
 import jax.numpy as jnp
@@ -32,7 +33,7 @@ with open(args.ckpt_filename, "rb") as f:
     agent = agent.load_state_dict(pickle.load(f)["agent"])
 agent = agent.eval()
 
-all_games = defaultdict(lambda: import_class(args.game_class)())
+all_games: Dict[str, Any] = defaultdict(lambda: import_class(args.game_class)())
 
 
 def human_vs_agent(env, info):

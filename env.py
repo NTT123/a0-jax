@@ -2,7 +2,7 @@
 Enviroment base class.
 """
 
-from typing import Any, Tuple, TypeVar
+from typing import Any, List, Tuple, TypeVar
 
 import chex
 import pax
@@ -53,7 +53,7 @@ class Enviroment(pax.Module):
         """Parse a string action and return a number."""
         return int(action_str)
 
-    def symmetries(self, state, action_weights):
+    def symmetries(self, state, action_weights) -> List[Tuple[chex.Array, ...]]:
         """The default symmetry group is the identity.
 
         We use this method for data augmentation in training.

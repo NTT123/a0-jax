@@ -1,0 +1,13 @@
+name: Checks
+on: [push, pull_request]
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        name: Checks
+        steps:
+            - uses: actions/checkout@v2
+            - uses: actions/setup-python@v2
+              with:
+                  python-version: 3.8
+            - run: bash test.sh

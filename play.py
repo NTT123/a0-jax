@@ -31,12 +31,12 @@ def play_one_move(
 ):
     """Play a move using agent's policy"""
     if enable_mcts:
-        batched_env = replicate(env, 1)
-        rng_key, rng_key_1 = jax.random.split(rng_key)
+        batched_env: Enviroment = replicate(env, 1)  # type: ignore
+        rng_key, rng_key_1 = jax.random.split(rng_key)  # type: ignore
         policy_output = improve_policy_with_mcts(
             agent,
             batched_env,
-            rng_key_1,
+            rng_key_1,  # type: ignore
             rec_fn=recurrent_fn,
             num_simulations=num_simulations,
         )

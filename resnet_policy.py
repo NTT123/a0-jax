@@ -13,14 +13,14 @@ class ResidualBlock(pax.Module):
         F = BatchNorm >> relu >> Conv1 >> BatchNorm >> relu >> Conv2
     """
 
-    def __init__(self, dim):
+    def __init__(self, dim: int) -> None:
         super().__init__()
         self.batchnorm1 = pax.BatchNorm2D(dim, True, True)
         self.batchnorm2 = pax.BatchNorm2D(dim, True, True)
         self.conv1 = pax.Conv2D(dim, dim, 3)
         self.conv2 = pax.Conv2D(dim, dim, 3)
 
-    def __call__(self, x):
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         t = x
         t = jax.nn.relu(self.batchnorm1(t))
         t = self.conv1(t)
@@ -40,7 +40,7 @@ class ResnetPolicyValueNet(pax.Module):
 
     def __init__(
         self, input_dims, num_actions: int, dim: int = 64, num_resblock: int = 5
-    ):
+    ) -> None:
         super().__init__()
         if len(input_dims) == 3:
             num_input_channels = input_dims[-1]

@@ -2,7 +2,7 @@
 
 import importlib
 from functools import partial
-from typing import Tuple
+from typing import Tuple, TypeVar
 
 import chex
 import jax
@@ -10,6 +10,8 @@ import jax.numpy as jnp
 import pax
 
 from env import Enviroment as E
+
+T = TypeVar("T")
 
 
 @pax.pure
@@ -21,7 +23,7 @@ def batched_policy(agent, states):
     return agent, agent(states, batched=True)
 
 
-def replicate(value: chex.ArrayTree, repeat: int) -> chex.ArrayTree:
+def replicate(value: T, repeat: int) -> T:
     """Replicate along the first axis."""
     return jax.tree_util.tree_map(lambda x: jnp.stack([x] * repeat), value)
 

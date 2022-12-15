@@ -8,6 +8,7 @@ import os
 import pickle
 import random
 from functools import partial
+from typing import Optional
 
 import chex
 import click
@@ -106,7 +107,7 @@ def collect_batched_self_play_data(
     return self_play_data
 
 
-def prepare_training_data(data: MoveOutput, env):
+def prepare_training_data(data: MoveOutput, env: Enviroment):
     """Preprocess the data collected from self-play.
 
     1. remove states after the enviroment is terminated.
@@ -120,7 +121,7 @@ def prepare_training_data(data: MoveOutput, env):
         action_weights = data.action_weights[i]
         reward = data.reward[i]
         L = len(is_terminated)
-        value = None
+        value: Optional[float] = None
         for idx in reversed(range(L)):
             if is_terminated[idx]:
                 continue
@@ -129,7 +130,7 @@ def prepare_training_data(data: MoveOutput, env):
             a = np.copy(action_weights[idx])
             for augmented_s, augmented_a in env.symmetries(s, a):
                 buffer.append(
-                    TrainingExample(
+                    TrainingExample(  # type: ignore
                         state=augmented_s,
                         action_weights=augmented_a,
                         value=np.array(value, dtype=np.float32),
@@ -257,7 +258,7 @@ def train(
         data = collect_self_play_data(
             agent,
             env,
-            rng_key_1,
+            rng_key_1,  # type: ignore
             selfplay_batch_size,
             num_self_plays_per_iteration,
             num_simulations_per_move,
@@ -298,13 +299,13 @@ def train(
             f"  learning rate {optim[1][-1].learning_rate:.1e}"
         )
         # save agent's weights to disk
-        with open(ckpt_filename, "wb") as f:
+        with open(ckpt_filename, "wb") as writer:
             dic = {
                 "agent": jax.device_get(agent.state_dict()),
                 "optim": jax.device_get(optim.state_dict()),
                 "iter": iteration,
             }
-            pickle.dump(dic, f)
+            pickle.dump(dic, writer)
     print("Done!")
 
 

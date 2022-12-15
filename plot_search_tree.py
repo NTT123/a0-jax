@@ -45,7 +45,7 @@ def main(
             agent = agent.load_state_dict(pickle.load(f)["agent"])
     agent = agent.eval()
     game = replicate(game, batch_size)
-    rng_key = jax.random.PRNGKey(42)
+    rng_key: jnp.ndarray = jax.random.PRNGKey(42)  # type: ignore
     policy_output = improve_policy_with_mcts(
         agent, game, rng_key, recurrent_fn, num_simulations
     )

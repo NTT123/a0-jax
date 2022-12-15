@@ -158,9 +158,9 @@ class CaroGame(Enviroment):
         return out
 
     def parse_action(self, action_str: str) -> int:
-        a, b = list(action_str.strip().replace(" ", ""))
-        a = ord(a) - ord("a")
-        b = ord(b) - ord("a")
+        sa, sb = list(action_str.strip().replace(" ", ""))
+        a = ord(sa) - ord("a")
+        b = ord(sb) - ord("a")
         return a * self.num_cols + b
 
 
