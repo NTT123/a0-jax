@@ -33,7 +33,7 @@ with open(args.ckpt_filename, "rb") as f:
     agent = agent.load_state_dict(pickle.load(f)["agent"])
 agent = agent.eval()
 
-all_games: Dict[str, Any] = defaultdict(lambda: import_class(args.game_class)())
+all_games: Dict[int, Any] = defaultdict(lambda: import_class(args.game_class)())
 
 
 def human_vs_agent(env, info):
@@ -96,7 +96,7 @@ app = Flask(__name__)
 
 
 @app.route("/<int:gameid>/move", methods=["POST"])
-def move(gameid):
+def move(gameid: int):
     env = all_games[gameid]
     info = request.get_json()
     env, res = human_vs_agent(env, info)
@@ -105,7 +105,7 @@ def move(gameid):
 
 
 @app.route("/<int:gameid>", methods=["GET"])
-def startgame(gameid):
+def startgame(gameid: int):
     all_games[gameid] = reset_env(all_games[gameid])
     return send_file("./index.html")
 
@@ -119,7 +119,7 @@ def index():
 
 
 @app.route("/<int:gameid>/reset")
-def reset(gameid):
+def reset(gameid: int):
     all_games[gameid] = reset_env(all_games[gameid])
     return {}
 

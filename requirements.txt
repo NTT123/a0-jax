@@ -8,3 +8,6 @@ opax
 optax
 pax3
 tqdm
+tensorflow-cpu
+pygraphviz
+flask
