@@ -21,8 +21,8 @@ python train_agent.py
 ```sh
 TF_CPP_MIN_LOG_LEVEL=2 \
 python train_agent.py \
-    --game_class="connect_four_game.Connect4Game" \
-    --agent_class="resnet_policy.ResnetPolicyValueNet" \
+    --game_class="games.connect_four_game.Connect4Game" \
+    --agent_class="policies.resnet_policy.ResnetPolicyValueNet" \
     --batch-size=4096 \
     --num_simulations_per_move=32 \
     --num_self_plays_per_iteration=102400 \
@@ -38,8 +38,8 @@ A live Connect-4 agent is running at https://huggingface.co/spaces/ntt123/Connec
 ```sh
 TF_CPP_MIN_LOG_LEVEL=2 \
 python3 train_agent.py \
-    --game-class="caro_game.CaroGame" \
-    --agent-class="resnet_policy.ResnetPolicyValueNet128" \
+    --game-class="games.caro_game.CaroGame" \
+    --agent-class="policies.resnet_policy.ResnetPolicyValueNet128" \
     --selfplay-batch-size=1024 \
     --training-batch-size=1024 \
     --num-simulations-per-move=32 \
@@ -59,8 +59,8 @@ A live Caro agent is running at https://caro.ntt123.repl.co.
 ```sh
 TF_CPP_MIN_LOG_LEVEL=2 \
 python3 train_agent.py \
-    --game-class="go_game.GoBoard9x9" \
-    --agent-class="resnet_policy.ResnetPolicyValueNet128" \
+    --game-class="games.go_game.GoBoard9x9" \
+    --agent-class="policies.resnet_policy.ResnetPolicyValueNet128" \
     --selfplay-batch-size=1024 \
     --training-batch-size=1024 \
     --num-simulations-per-move=32 \
