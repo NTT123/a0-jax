@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 import mctx
 
-from env import Enviroment as E
+from games.env import Enviroment as E
 from utils import batched_policy, env_step
 
 

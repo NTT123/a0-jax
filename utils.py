@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 import pax
 
-from env import Enviroment as E
+from games.env import Enviroment as E
 
 T = TypeVar("T")
 

@@ -10,8 +10,8 @@ import jax.numpy as jnp
 import numpy as np
 import pax
 
-from dsu import DSU
-from env import Enviroment
+from games.dsu import DSU
+from games.env import Enviroment
 from utils import select_tree
 
 

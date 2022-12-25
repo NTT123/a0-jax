@@ -21,7 +21,7 @@ import opax
 import optax
 import pax
 
-from env import Enviroment
+from games.env import Enviroment
 from play import agent_vs_agent_multiple_games
 from tree_search import improve_policy_with_mcts, recurrent_fn
 from utils import batched_policy, env_step, import_class, replicate, reset_env
@@ -206,8 +206,8 @@ def train_step(net, optim, data: TrainingExample):
 
 
 def train(
-    game_class="connect_two_game.Connect2Game",
-    agent_class="mlp_policy.MlpPolicyValueNet",
+    game_class="games.connect_two_game.Connect2Game",
+    agent_class="policies.mlp_policy.MlpPolicyValueNet",
     selfplay_batch_size: int = 128,
     training_batch_size: int = 128,
     num_iterations: int = 100,
