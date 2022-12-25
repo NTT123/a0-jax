@@ -23,15 +23,15 @@ parser.add_argument("--num_simulations_per_move", default=1024, type=int)
 enable_mcts = True
 args = parser.parse_args()
 
-env = import_class(args.game_class)()
-agent = import_class(args.agent_class)(
-    input_dims=env.observation().shape,
-    num_actions=env.num_actions(),
+ENV = import_class(args.game_class)()
+AGENT = import_class(args.agent_class)(
+    input_dims=ENV.observation().shape,
+    num_actions=ENV.num_actions(),
 )
 
 with open(args.ckpt_filename, "rb") as f:
-    agent = agent.load_state_dict(pickle.load(f)["agent"])
-agent = agent.eval()
+    AGENT = AGENT.load_state_dict(pickle.load(f)["agent"])
+AGENT = AGENT.eval()
 
 all_games: Dict[int, Any] = defaultdict(lambda: import_class(args.game_class)())
 
@@ -65,7 +65,7 @@ def human_vs_agent(env, info):
             }
     rng_key = jax.random.PRNGKey(random.randint(0, 999999))
     action, action_weights, value = play_one_move(
-        agent,
+        AGENT,
         env,
         rng_key,
         enable_mcts=enable_mcts,

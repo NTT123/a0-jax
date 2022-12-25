@@ -189,9 +189,9 @@ if __name__ == "__main__":
     game = CaroGame()
     while not game.is_terminated().item():
         game.render()
-        i = input("> ")
-        action = game.parse_action(i)
-        game, reward = game.step(action)
+        user_input: str = input("> ")
+        user_action = game.parse_action(user_input)
+        game, reward = game.step(user_action)
 
     print("Final board")
     game.render()

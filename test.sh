@@ -8,7 +8,7 @@ pip install --upgrade pip
 pip install black==22.3.0 pylint==2.15.8 pytype==2022.12.15 pytest==7.2.0
 pip install -r requirements.txt
 black --diff --check $(git ls-files '*.py')
-pylint --disable=all --enable=unused-import $(git ls-files '*.py')
+pylint --disable=all --enable=unused-import,redefined-outer-name $(git ls-files '*.py')
 pytype $(git ls-files '*.py')
 pytest
 set +u
