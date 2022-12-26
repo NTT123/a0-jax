@@ -176,8 +176,8 @@ def human_vs_agent(
 
 
 def main(
-    game_class: str = "connect_two_game.Connect2Game",
-    agent_class="mlp_policy.MlpPolicyValueNet",
+    game_class: str = "games.connect_two_game.Connect2Game",
+    agent_class="policies.mlp_policy.MlpPolicyValueNet",
     ckpt_filename: str = "./agent.ckpt",
     human_first: bool = False,
     enable_mcts: bool = False,
