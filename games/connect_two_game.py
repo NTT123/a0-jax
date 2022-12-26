@@ -19,7 +19,7 @@ class Connect2WinChecker(pax.Module):
 
     Result:
         +1: player p1 won
-        -1: player p2 lost
+        -1: player p2 won
          0: undecided
     """
 
