@@ -16,6 +16,11 @@ class Connect2WinChecker(pax.Module):
 
     We use a conv1d for scanning the whole board.
     (We can do better by locating the recent move.)
+
+    Result:
+        +1: player p1 won
+        -1: player p2 lost
+         0: undecided
     """
 
     def __init__(self):
@@ -25,12 +30,12 @@ class Connect2WinChecker(pax.Module):
         weight = weight.reshape(conv.weight.shape)
         self.conv = conv.replace(weight=weight)
 
-    def __call__(self, board):
+    def __call__(self, board: chex.Array) -> chex.Array:
         board = board[None, :, None].astype(jnp.float32)
         x = self.conv(board)
-        m = jnp.max(jnp.abs(x))
-        m1 = jnp.where(m == jnp.max(x), 1, -1)
-        return jnp.where(m == 2, m1, 0)
+        is_p1_won: chex.Array = jnp.max(x) == 2  # 1 + 1
+        is_p2_won: chex.Array = jnp.min(x) == -2  # -1 + -1
+        return is_p1_won * 1 + is_p2_won * (-1)
 
 
 class Connect2Game(Enviroment):
