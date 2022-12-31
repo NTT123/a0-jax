@@ -12,7 +12,7 @@ pip install -r requirements.txt
 
 
 ```sh
-python train_agent.py
+python train_agent.py --weight-decay=1e-2 --num-iterations=3
 ```
 
 

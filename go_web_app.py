@@ -1,4 +1,4 @@
-# go game web server
+"""go game web server"""
 
 import pickle
 import random
@@ -20,7 +20,7 @@ parser.add_argument(
 )
 parser.add_argument("--ckpt-filename", default="go_agent_9x9_256.ckpt", type=str)
 parser.add_argument("--num_simulations_per_move", default=1024, type=int)
-enable_mcts = True
+disable_mcts = False
 args = parser.parse_args()
 
 ENV = import_class(args.game_class)()
@@ -33,7 +33,7 @@ with open(args.ckpt_filename, "rb") as f:
     AGENT = AGENT.load_state_dict(pickle.load(f)["agent"])
 AGENT = AGENT.eval()
 
-all_games: Dict[int, Any] = defaultdict(lambda: import_class(args.game_class)())
+all_games: Dict[int, Any] = defaultdict(import_class(args.game_class))
 
 
 def human_vs_agent(env, info):
@@ -68,7 +68,7 @@ def human_vs_agent(env, info):
         AGENT,
         env,
         rng_key,
-        enable_mcts=enable_mcts,
+        disable_mcts=disable_mcts,
         num_simulations=args.num_simulations_per_move,
         random_action=False,
     )

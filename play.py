@@ -19,18 +19,21 @@ from utils import env_step, import_class, replicate, reset_env
 
 @partial(
     jax.jit,
-    static_argnames=("num_simulations", "enable_mcts", "random_action"),
+    static_argnames=("num_simulations", "disable_mcts", "random_action"),
 )
 def play_one_move(
     agent,
     env: Enviroment,
     rng_key: chex.Array,
-    enable_mcts: bool = False,
+    disable_mcts: bool = False,
     num_simulations: int = 1024,
     random_action: bool = True,
 ):
     """Play a move using agent's policy"""
-    if enable_mcts:
+    if disable_mcts:
+        action_logits, value = agent(env.canonical_observation())
+        action_weights = jax.nn.softmax(action_logits, axis=-1)
+    else:
         batched_env: Enviroment = replicate(env, 1)  # type: ignore
         rng_key, rng_key_1 = jax.random.split(rng_key)  # type: ignore
         policy_output = improve_policy_with_mcts(
@@ -43,9 +46,6 @@ def play_one_move(
         action_weights = policy_output.action_weights[0]
         root_idx = policy_output.search_tree.ROOT_INDEX
         value = policy_output.search_tree.node_values[0, root_idx]
-    else:
-        action_logits, value = agent(env.canonical_observation())
-        action_weights = jax.nn.softmax(action_logits, axis=-1)
 
     if random_action:
         action = jax.random.categorical(rng_key, jnp.log(action_weights), axis=-1)
@@ -59,13 +59,14 @@ def agent_vs_agent(
     agent2,
     env: Enviroment,
     rng_key: chex.Array,
-    enable_mcts: bool = False,
+    disable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
 ):
     """A game of agent1 vs agent2."""
 
     def cond_fn(state):
         env, step = state[0], state[-1]
+        # pylint: disable=singleton-comparison
         not_ended = env.is_terminated() == False
         not_too_long = step <= env.max_num_steps()
         return jnp.logical_and(not_ended, not_too_long)
@@ -77,7 +78,7 @@ def agent_vs_agent(
             a1,
             env,
             rng_key_1,
-            enable_mcts=enable_mcts,
+            disable_mcts=disable_mcts,
             num_simulations=num_simulations_per_move,
         )
         env, reward = env_step(env, action)
@@ -103,16 +104,16 @@ def agent_vs_agent_multiple_games(
     agent2,
     env,
     rng_key,
-    enable_mcts: bool = False,
+    disable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
     num_games: int = 128,
 ):
     """Fast agent vs agent evaluation."""
-    _rng_keys = jax.random.split(rng_key, num_games)
-    rng_keys = jnp.stack(_rng_keys, axis=0)  # type: ignore
+    rng_key_list = jax.random.split(rng_key, num_games)
+    rng_keys = jnp.stack(rng_key_list, axis=0)  # type: ignore
     avsa = partial(
         agent_vs_agent,
-        enable_mcts=enable_mcts,
+        disable_mcts=disable_mcts,
         num_simulations_per_move=num_simulations_per_move,
     )
     batched_avsa = jax.vmap(avsa, in_axes=(None, None, 0, 0))
@@ -128,7 +129,7 @@ def human_vs_agent(
     agent,
     env: Enviroment,
     human_first: bool = True,
-    enable_mcts: bool = False,
+    disable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
 ):
     """A game of human vs agent."""
@@ -150,7 +151,7 @@ def human_vs_agent(
                 agent,
                 env,
                 rng_key_1,
-                enable_mcts=enable_mcts,
+                disable_mcts=disable_mcts,
                 num_simulations=num_simulations_per_move,
                 random_action=False,
             )
@@ -180,7 +181,7 @@ def main(
     agent_class="policies.mlp_policy.MlpPolicyValueNet",
     ckpt_filename: str = "./agent.ckpt",
     human_first: bool = False,
-    enable_mcts: bool = False,
+    disable_mcts: bool = False,
     num_simulations_per_move: int = 128,
 ):
     """Load agent's weight from disk and start the game."""
@@ -197,7 +198,7 @@ def main(
         agent,
         env,
         human_first=human_first,
-        enable_mcts=enable_mcts,
+        disable_mcts=disable_mcts,
         num_simulations_per_move=num_simulations_per_move,
     )
 
