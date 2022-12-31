@@ -114,15 +114,15 @@ def prepare_training_data(data: MoveOutput, env: Enviroment):
     2. compute the value at each state.
     """
     buffer = []
-    N = len(data.terminated)
-    for i in range(N):
+    num_games = len(data.terminated)
+    for i in range(num_games):
         state = data.state[i]
         is_terminated = data.terminated[i]
         action_weights = data.action_weights[i]
         reward = data.reward[i]
-        L = len(is_terminated)
+        num_steps = len(is_terminated)
         value: Optional[chex.Array] = None
-        for idx in reversed(range(L)):
+        for idx in reversed(range(num_steps)):
             if is_terminated[idx]:
                 continue
             if value is None:
@@ -152,14 +152,14 @@ def collect_self_play_data(
     num_simulations_per_move: int,
 ):
     """Collect self-play data for training."""
-    N = data_size // batch_size
+    num_iters = data_size // batch_size
     devices = jax.local_devices()
     num_devices = len(devices)
-    _rng_keys = jax.random.split(rng_key, N * num_devices)
-    rng_keys = jnp.stack(_rng_keys).reshape((N, num_devices, -1))  # type: ignore
+    rng_key_list = jax.random.split(rng_key, num_iters * num_devices)
+    rng_keys = jnp.stack(rng_key_list).reshape((num_iters, num_devices, -1))  # type: ignore
     data = []
 
-    with click.progressbar(range(N), label="  self play     ") as bar:
+    with click.progressbar(range(num_iters), label="  self play     ") as bar:
         for i in bar:
             batch = collect_batched_self_play_data(
                 agent,
@@ -268,13 +268,13 @@ def train(
         )
         data = list(data)
         shuffler.shuffle(data)
-        old_agent = jax.tree_util.tree_map(lambda x: jnp.copy(x), agent)
+        old_agent = jax.tree_util.tree_map(jnp.copy, agent)
         agent, losses = agent.train(), []
         agent, optim = jax.device_put_replicated((agent, optim), devices)
         ids = range(0, len(data) - training_batch_size, training_batch_size)
         with click.progressbar(ids, label="  train agent   ") as progressbar:
             for idx in progressbar:
-                batch = data[idx : (idx + training_batch_size)]
+                batch = data[idx: (idx + training_batch_size)]
                 batch = jax.tree_util.tree_map(_stack_and_reshape, *batch)
                 agent, optim, loss = train_step(agent, optim, batch)
                 losses.append(loss)
@@ -283,6 +283,7 @@ def train(
         value_loss = np.mean(sum(jax.device_get(value_loss))) / len(value_loss)
         policy_loss = np.mean(sum(jax.device_get(policy_loss))) / len(policy_loss)
         agent, optim = jax.tree_util.tree_map(lambda x: x[0], (agent, optim))
+        # new agent is player 1
         result_1: PlayResults = agent_vs_agent_multiple_games(
             agent.eval(),
             old_agent,
@@ -290,6 +291,7 @@ def train(
             rng_key_2,
             num_simulations_per_move=32,
         )
+        # old agent is player 1
         result_2: PlayResults = agent_vs_agent_multiple_games(
             old_agent,
             agent.eval(),
