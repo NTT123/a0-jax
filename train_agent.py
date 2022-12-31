@@ -274,7 +274,7 @@ def train(
         ids = range(0, len(data) - training_batch_size, training_batch_size)
         with click.progressbar(ids, label="  train agent   ") as progressbar:
             for idx in progressbar:
-                batch = data[idx: (idx + training_batch_size)]
+                batch = data[idx : (idx + training_batch_size)]
                 batch = jax.tree_util.tree_map(_stack_and_reshape, *batch)
                 agent, optim, loss = train_step(agent, optim, batch)
                 losses.append(loss)
