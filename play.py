@@ -6,6 +6,7 @@ import pickle
 import random
 import warnings
 from functools import partial
+from typing import NamedTuple
 
 import chex
 import jax
@@ -15,6 +16,12 @@ from fire import Fire
 from games.env import Enviroment
 from tree_search import improve_policy_with_mcts, recurrent_fn
 from utils import env_step, import_class, replicate, reset_env
+
+
+class PlayResults(NamedTuple):
+    win_count: int
+    draw_count: int
+    loss_count: int
 
 
 @partial(
@@ -107,7 +114,7 @@ def agent_vs_agent_multiple_games(
     disable_mcts: bool = False,
     num_simulations_per_move: int = 1024,
     num_games: int = 128,
-):
+) -> PlayResults:
     """Fast agent vs agent evaluation."""
     rng_key_list = jax.random.split(rng_key, num_games)
     rng_keys = jnp.stack(rng_key_list, axis=0)  # type: ignore
@@ -122,7 +129,9 @@ def agent_vs_agent_multiple_games(
     win_count = jnp.sum(results == 1)
     draw_count = jnp.sum(results == 0)
     loss_count = jnp.sum(results == -1)
-    return win_count, draw_count, loss_count
+    return PlayResults(
+        win_count=win_count, draw_count=draw_count, loss_count=loss_count
+    )
 
 
 def human_vs_agent(

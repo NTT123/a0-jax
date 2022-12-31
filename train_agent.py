@@ -22,7 +22,7 @@ import optax
 import pax
 
 from games.env import Enviroment
-from play import agent_vs_agent_multiple_games
+from play import PlayResults, agent_vs_agent_multiple_games
 from tree_search import improve_policy_with_mcts, recurrent_fn
 from utils import batched_policy, env_step, import_class, replicate, reset_env
 
@@ -283,17 +283,25 @@ def train(
         value_loss = np.mean(sum(jax.device_get(value_loss))) / len(value_loss)
         policy_loss = np.mean(sum(jax.device_get(policy_loss))) / len(policy_loss)
         agent, optim = jax.tree_util.tree_map(lambda x: x[0], (agent, optim))
-        win_count1, draw_count1, loss_count1 = agent_vs_agent_multiple_games(
-            agent.eval(), old_agent, env, rng_key_2
+        result_1: PlayResults = agent_vs_agent_multiple_games(
+            agent.eval(),
+            old_agent,
+            env,
+            rng_key_2,
+            num_simulations_per_move=32,
         )
-        loss_count2, draw_count2, win_count2 = agent_vs_agent_multiple_games(
-            old_agent, agent.eval(), env, rng_key_3
+        result_2: PlayResults = agent_vs_agent_multiple_games(
+            old_agent,
+            agent.eval(),
+            env,
+            rng_key_3,
+            num_simulations_per_move=32,
         )
         print(
             "  evaluation      {} win - {} draw - {} loss".format(
-                win_count1 + win_count2,
-                draw_count1 + draw_count2,
-                loss_count1 + loss_count2,
+                result_1.win_count + result_2.loss_count,
+                result_1.draw_count + result_2.draw_count,
+                result_1.loss_count + result_2.win_count,
             )
         )
         print(
