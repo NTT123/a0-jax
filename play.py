@@ -19,9 +19,9 @@ from utils import env_step, import_class, replicate, reset_env
 
 
 class PlayResults(NamedTuple):
-    win_count: int
-    draw_count: int
-    loss_count: int
+    win_count: chex.Array
+    draw_count: chex.Array
+    loss_count: chex.Array
 
 
 @partial(
@@ -126,9 +126,9 @@ def agent_vs_agent_multiple_games(
     batched_avsa = jax.vmap(avsa, in_axes=(None, None, 0, 0))
     envs = replicate(env, num_games)
     results = batched_avsa(agent1, agent2, envs, rng_keys)
-    win_count = jnp.sum(results == 1).item()
-    draw_count = jnp.sum(results == 0).item()
-    loss_count = jnp.sum(results == -1).item()
+    win_count = jnp.sum(results == 1)
+    draw_count = jnp.sum(results == 0)
+    loss_count = jnp.sum(results == -1)
     return PlayResults(
         win_count=win_count, draw_count=draw_count, loss_count=loss_count
     )
